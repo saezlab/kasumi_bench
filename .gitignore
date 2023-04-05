@@ -1,0 +1,12 @@
+.misty.temp
+data
+BC*
+CRC*
+CTCL*
+DCIS*
+MIBI*
+*.rds
+*.pdf
+*.txt
+.DS_Store
+.Rhistory
