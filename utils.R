@@ -1,8 +1,7 @@
-library(mistyR)
+library(mistyR)  # requires >= 1.99.0
 library(future)
 library(tidyverse)
 library(furrr)
-library(uwot)
 library(knn.covertree)
 library(proxy)
 library(igraph)
@@ -108,7 +107,8 @@ cn_labels <- function(neighborhoods, k) {
 }
 
 
-sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder) {
+sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder, 
+                     family = "constant") {
   if (file.exists(paste0(top.folder, ".rds"))) {
     misty.results <- read_rds(paste0(top.folder, ".rds"))
   } else {
@@ -119,8 +119,8 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
         } else {
           misty.views <- create_initial_view(all.cells[[i]]) %>%
             add_paraview(all.positions[[i]], l,
-              family = "constant", cached = TRUE,
-              prefix = "p."
+              family = family, cached = TRUE,
+              prefix = ifelse(family == "constant","p.","")
             )
 
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
