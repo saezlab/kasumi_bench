@@ -71,6 +71,11 @@ freq.sm <- sm.repr %>%
 # 0.705
 roc.sm <- classify(freq.sm)
 
+## WS DCIS ----
+
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCIStest")
+
+## Alternatives DCIS ----
 
 cn.results <- cn_train(all.cells.dcis, all.positions.dcis)
 cn.repr <- cn_labels(cn.results, k = 17)
@@ -195,7 +200,11 @@ freq.sm <- sm.repr %>%
 # 0.775
 roc.sm <- classify(freq.sm)
 
+## WS CTCL ----
 
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLtest")
+
+## Alternatives CTCL ----
 
 cn.results <- cn_train(all.cells.lymph, all.positions.lymph)
 cn.repr <- cn_labels(cn.results, k = 10)
@@ -315,6 +324,13 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 roc.sm <- classify(freq.sm)
+
+## WS BC ----
+
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCtest")
+
+
+## Alternatives BC ----
 
 cn.results <- cn_train(all.cells.bc, all.positions.bc)
 cn.repr <- cn_labels(cn.results, k = 6)

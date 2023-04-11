@@ -36,7 +36,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 150, 150, 20, 3, "DCISexpr", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 75, 150, 20, 3, "DCISexpr", "gaussian")
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
                                rename(id = PointNumber, target = Status) %>%
@@ -59,8 +59,11 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 
-roc.sm <- classify(freq.sm)
+roc.sm.dcis <- classify(freq.sm)
 
+## WS DCIS ---- 
+
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 75, "DCISexpr", "gaussian")
 
 # CODEX ----
 
@@ -97,7 +100,7 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 200px = 75um window
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 200, 200, 20, 3, "CTCLexpr", "gaussian")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, 3, "CTCLexpr", "gaussian")
 
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
                                rename(id = Spots, target = Groups) %>%
@@ -119,8 +122,11 @@ freq.sm <- sm.repr %>%
   select(-id, -Patients)
 
 
-roc.sm <- classify(freq.sm)
+roc.sm.ctcl <- classify(freq.sm)
 
+## WS CTCL ----
+
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 100, "CTCLexpr", "gaussian")
 
 # IMC ----
 
@@ -176,7 +182,7 @@ all.positions.bc <- all.objs %>% map(~.x[["pos"]])
 
 ## SM BC ----
 
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 100, 100, 20, 2, "BCexpr", "gaussian")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, 2, "BCexpr", "gaussian")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
@@ -201,5 +207,7 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id)
 
-roc.sm <- classify(freq.sm)
+roc.sm.bc <- classify(freq.sm)
 
+## WS BC ----
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr", "gaussian")

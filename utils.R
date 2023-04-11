@@ -140,7 +140,7 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
   return(misty.results)
 }
 
-misty_train <- function(all.cells, all.positions, l, top.folder) {
+misty_train <- function(all.cells, all.positions, l, top.folder, family = "constant") {
   if (file.exists(paste0(top.folder, "_ws.rds"))) {
     misty.results <- read_rds(paste0(top.folder, "_ws.rds"))
   } else {
@@ -148,13 +148,12 @@ misty_train <- function(all.cells, all.positions, l, top.folder) {
       map(\(i){
         misty.views <- create_initial_view(all.cells[[i]]) %>%
           add_paraview(all.positions[[i]], l,
-            family = "constant", cached = TRUE,
-            prefix = "p."
-          )
+            family = family, cached = TRUE,
+            prefix = ifelse(family == "constant","p.","")
+          ) %>% select_markers("intraview", where(~ sd(.) != 0))  
 
         run_misty(misty.views,
-          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/"),
-          bypass.intra = TRUE
+          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/")
         )
       }) %>%
       unlist()
