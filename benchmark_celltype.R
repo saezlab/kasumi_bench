@@ -1,7 +1,7 @@
 source("utils.R")
 
 
-plan(multisession, workers = 4)
+plan(multisession, workers = 5)
 
 
 # MIBI  ----
@@ -45,15 +45,13 @@ all.positions.dcis <- points %>% map(\(id){
 
 misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 150, 20, 3, "DCIStest")
 
-# IDEA remove variables from representation not present in at least p% of samples
-
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
   filter(target %in% c("progressor", "nonprogressor")) %>%
   mutate(id = as.character(id), target = as.factor(target)))
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-sm.repr <- sm_labels(misty.results, cuts = 0.9, res = 0.5)
+# sm.repr <- sm_labels(misty.results, cuts = 0.5, res = 0.6)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -61,14 +59,14 @@ freq.sm <- sm.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
     freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
   add_column(id = repr.ids) %>%
   left_join(resp %>% select(PointNumber, Status) %>% mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-# 0.705
+# 0.779
 roc.sm <- classify(freq.sm)
 
 ## WS DCIS ----
@@ -86,9 +84,8 @@ freq.cn <- cn.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
     freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+  select(where(~ (sd(.) > 1e-3))) %>%
   add_column(id = repr.ids.cn) %>%
-  filter(id %in% repr.ids) %>%
   left_join(resp %>% select(PointNumber, Status) %>% mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target)) %>%
@@ -111,13 +108,6 @@ freq.dcis <- all.cells.dcis %>%
 # 0.448
 roc.fr <- classify(freq.dcis)
 
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr), legacy.axes = TRUE) + 
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype="dotted") + 
-  labs(color = NULL) +
-  ggtitle("MIBI DCIS") + theme_classic()
-
-ggsave("roc.mibi.pdf")
-
 markov.dcis <- all.cells.dcis %>%
   map2(all.positions.dcis, markov_repr) %>%
   list_transpose() %>%
@@ -129,7 +119,16 @@ markov.dcis <- all.cells.dcis %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target))
 
-classify(markov.dcis)
+# 0.516
+roc.pa <- classify(markov.dcis)
+
+
+ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
+  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+  labs(color = NULL) +
+  ggtitle("MIBI DCIS") + theme_classic()
+
+ggsave("roc.mibi.pdf")
 
 
 # CODEX ----
@@ -177,12 +176,11 @@ misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, 3, 
 
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
-  mutate(id = as.character(id), target = as.factor(make.names(target))))
+  mutate(id = as.character(id), target = as.factor(make.names(target))), minsamp = 0.2)
 
-# 0.6, 0.8 for 5fold
-# 0.8, 0.7 for 10fold
+
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-#sm.repr <- sm_labels(misty.results, cuts = 0.8, res = 0.7)
+# sm.repr <- sm_labels(misty.results, cuts = 0.6, res = 0.9)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -190,14 +188,14 @@ freq.sm <- sm.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
     freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
   add_column(id = repr.ids) %>%
   left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
-# 0.775
+# 0.932
 roc.sm <- classify(freq.sm)
 
 ## WS CTCL ----
@@ -215,7 +213,7 @@ freq.cn <- cn.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
     freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+  select(where(~ (sd(.) > 1e-3))) %>%
   add_column(id = repr.ids.cn) %>%
   filter(id %in% repr.ids) %>%
   left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
@@ -242,8 +240,22 @@ freq.lymph <- all.cells.lymph %>%
 # 0.4875
 roc.fr <- classify(freq.lymph)
 
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr), legacy.axes = TRUE) + 
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype="dotted") + 
+markov.lymph <- all.cells.lymph %>%
+  map2(all.positions.lymph, markov_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(Spots = spots) %>%
+  left_join(outcome, by = "Spots") %>%
+  filter(Spots %in% repr.ids) %>%
+  select(-Spots) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target)))
+
+# 0.658
+roc.pa <- classify(markov.lymph)
+
+ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
+  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
   labs(color = NULL) +
   ggtitle("CODEX CTCL") + theme_classic()
 
@@ -307,8 +319,8 @@ param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
 
-#sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-sm.repr <- sm_labels(misty.results, cuts = 0.5, res = 0.8)
+sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+# sm.repr <- sm_labels(misty.results, cuts = 0.5, res = 0.8)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -316,7 +328,7 @@ freq.sm <- sm.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
     freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
   add_column(id = repr.ids) %>%
   left_join(resp, by = c("id" = "core")) %>%
   rename(target = response) %>%
@@ -339,9 +351,9 @@ repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
 
 freq.cn <- cn.repr %>%
   map_dfr(~ .x %>%
-            select(-c(id, x, y)) %>%
-            freq_repr()) %>%
-  select(where(~ sd(.) > 1e-3)) %>%
+    select(-c(id, x, y)) %>%
+    freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3))) %>%
   add_column(id = repr.ids.cn) %>%
   filter(id %in% repr.ids) %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -366,10 +378,23 @@ freq.bc <- all.cells.bc %>%
 # 0.509
 roc.fr <- classify(freq.bc)
 
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr), legacy.axes = TRUE) + 
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype="dotted") + 
+markov.bc <- all.cells.bc %>%
+  map2(all.positions.bc, markov_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(core = cores) %>%
+  filter(core %in% repr.ids) %>%
+  left_join(resp, by = "core") %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-core)
+
+# 0.658
+roc.pa <- classify(markov.bc)
+
+ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
+  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
   labs(color = NULL) +
   ggtitle("IMC BC") + theme_classic()
 
 ggsave("roc.imc.pdf")
-

@@ -1,4 +1,4 @@
-library(mistyR)  # requires >= 1.99.0
+library(mistyR) # requires >= 1.99.0
 library(future)
 library(tidyverse)
 library(furrr)
@@ -9,6 +9,7 @@ library(readxl)
 library(ranger)
 library(caret)
 library(pROC)
+library(ClusterR)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -25,7 +26,6 @@ markov_repr <- function(labels, positions) {
   misty.views <- create_initial_view(labels) %>%
     add_juxtaview(positions, neighbor.thr = threshold)
   suppressMessages(
-    # instead of simply summing, it might be worth dividing by the number of cell type 1
     neighb <- misty.views[[paste0("juxtaview.", threshold)]]$data %>%
       mutate(id = apply(labels, 1, which)) %>%
       add_row(id = seq_len(ncol(labels))) %>%
@@ -41,8 +41,14 @@ markov_repr <- function(labels, positions) {
   # calculate probabilities per row and serialize the whole matrix
   # neighb %>% as.numeric()
   # if not normalized per row
-  serialized <- neighb[upper.tri(neighb, diag = TRUE)]
-  serialized / sum(serialized)
+  # serialized <- neighb[upper.tri(neighb, diag = TRUE)]
+  # serialized / sum(serialized)
+
+  # instead of simply summing, it might be worth dividing by the number of cell type 1
+  (neighb / colSums(labels)) %>%
+    replace(is.na(.), 0) %>%
+    as.matrix() %>%
+    as.numeric()
 }
 
 # representation can be cns or sliding misty signatures
@@ -71,7 +77,7 @@ leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure
 }
 
 kmeans_ondist <- function(representation, k = 10) {
-  clust <- ClusterR::KMeans_rcpp(representation, k)
+  clust <- KMeans_rcpp(representation, k)
   return(clust$clusters)
 }
 
@@ -107,7 +113,7 @@ cn_labels <- function(neighborhoods, k) {
 }
 
 
-sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder, 
+sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder,
                      family = "constant") {
   if (file.exists(paste0(top.folder, ".rds"))) {
     misty.results <- read_rds(paste0(top.folder, ".rds"))
@@ -120,7 +126,7 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
           misty.views <- create_initial_view(all.cells[[i]]) %>%
             add_paraview(all.positions[[i]], l,
               family = family, cached = TRUE,
-              prefix = ifelse(family == "constant","p.","")
+              prefix = ifelse(family == "constant", "p.", "")
             )
 
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
@@ -149,11 +155,13 @@ misty_train <- function(all.cells, all.positions, l, top.folder, family = "const
         misty.views <- create_initial_view(all.cells[[i]]) %>%
           add_paraview(all.positions[[i]], l,
             family = family, cached = TRUE,
-            prefix = ifelse(family == "constant","p.","")
-          ) %>% select_markers("intraview", where(~ sd(.) != 0))  
+            prefix = ifelse(family == "constant", "p.", "")
+          ) %>%
+          select_markers("intraview", where(~ sd(.) != 0))
 
         run_misty(misty.views,
-          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/")
+          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/"),
+          bypass.intra = (family == "constant")
         )
       }) %>%
       unlist()
@@ -164,9 +172,9 @@ misty_train <- function(all.cells, all.positions, l, top.folder, family = "const
   return(misty.results)
 }
 
-sm_labels <- function(misty.results, cuts, res, cutoff = 0) {
+sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   # trimming matters
-  sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE)
+  sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
   sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
 
@@ -193,7 +201,7 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0) {
   clean <- sig %>%
     select(-sample, -contains("intra_")) %>%
     slice(keep) %>%
-    select(where(~ sum(.) != 0 & !all(. <= 0)))
+    select(where(~ sum(.) != 0))
 
   # think about gain.R2 as node weights
   clusters <- leiden_onsim(clean, cuts, res)
@@ -253,7 +261,7 @@ classify_rf <- function(representation) {
 }
 
 optimal_smclust <- function(misty.results, true.labels, funct = classify) {
-  grid <- seq(0.5, 0.9, 0.1) %>% map_dfr(\(cuts){
+  grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
     seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
       sm.repr <- sm_labels(misty.results, cuts, res)
 
@@ -263,7 +271,7 @@ optimal_smclust <- function(misty.results, true.labels, funct = classify) {
         sm.repr %>% map_dfr(~ .x %>%
           select(-c(id, x, y)) %>%
           freq_repr()) %>%
-          select(where(~ sd(.) > 1e-3)) %>%
+          select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(1, 0.1 * length(.))))) %>%
           add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
           drop_na() %>% select(-id) %>% funct()
       )
@@ -271,6 +279,6 @@ optimal_smclust <- function(misty.results, true.labels, funct = classify) {
       print(paste(cuts, res, as.numeric(perf$auc)))
       tibble_row(cut = cuts, res = res, perf = as.numeric(perf$auc))
     })
-  })
+  }, .options = furrr_options(seed = 1))
   grid[which.max(grid$perf), ] %>% unlist()
 }
