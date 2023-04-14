@@ -53,6 +53,7 @@ markov_repr <- function(labels, positions) {
 
 # representation can be cns or sliding misty signatures
 leiden_onsnn <- function(representation, nn = 30, minjac = 0.15, resolution = 0.8) {
+  set.seed(1)
   neighbors <- find_knn(representation, nn, distance = "cosine")
   snn <- simil(neighbors$index, "eJaccard")
   snn[snn < minjac] <- 0
@@ -65,6 +66,7 @@ leiden_onsnn <- function(representation, nn = 30, minjac = 0.15, resolution = 0.
 }
 
 leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure = "cosine") {
+  set.seed(1)
   sim <- simil(representation, measure)
 
   sim[sim < minsim] <- 0
@@ -77,6 +79,7 @@ leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure
 }
 
 kmeans_ondist <- function(representation, k = 10) {
+  set.seed(1)
   clust <- KMeans_rcpp(representation, k)
   return(clust$clusters)
 }
@@ -271,13 +274,14 @@ optimal_smclust <- function(misty.results, true.labels, funct = classify) {
         sm.repr %>% map_dfr(~ .x %>%
           select(-c(id, x, y)) %>%
           freq_repr()) %>%
-          select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(1, 0.1 * length(.))))) %>%
+          select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
           add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
           drop_na() %>% select(-id) %>% funct()
       )
-
-      print(paste(cuts, res, as.numeric(perf$auc)))
-      tibble_row(cut = cuts, res = res, perf = as.numeric(perf$auc))
+      
+      auc <- ifelse(class(perf) == "try-error", 0, perf$auc)
+      print(paste(cuts, res, as.numeric(auc)))
+      tibble_row(cut = cuts, res = res, perf = as.numeric(auc))
     })
   }, .options = furrr_options(seed = 1))
   grid[which.max(grid$perf), ] %>% unlist()
