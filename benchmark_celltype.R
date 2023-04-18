@@ -43,7 +43,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 150, 20, 2, "DCISct")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, 2, "DCISct")
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%

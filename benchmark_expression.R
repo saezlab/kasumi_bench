@@ -36,7 +36,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 75, 150, 20, 2, "DCISexpr", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, 2, "DCISexpr", "gaussian")
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
@@ -65,7 +65,7 @@ write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
 
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 75, "DCISexpr", "gaussian")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 100, "DCISexpr", "gaussian")
 
 # CODEX ----
 
