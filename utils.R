@@ -33,18 +33,9 @@ markov_repr <- function(labels, positions) {
       group_by(id) %>%
       group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
       ungroup() %>%
-      select(-id) # %>%
-    # apply(1, \(x) x/sum(x)) %>%
-    # replace(is.na(.), 0) %>% t()
+      select(-id)
   )
 
-  # calculate probabilities per row and serialize the whole matrix
-  # neighb %>% as.numeric()
-  # if not normalized per row
-  # serialized <- neighb[upper.tri(neighb, diag = TRUE)]
-  # serialized / sum(serialized)
-
-  # instead of simply summing, it might be worth dividing by the number of cell type 1
   (neighb / colSums(labels)) %>%
     replace(is.na(.), 0) %>%
     as.matrix() %>%
@@ -135,7 +126,8 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
             minu = minu, minm = minm,
             results.folder = paste0(top.folder, "/sample", names(all.cells)[i], "/"),
-            bypass.intra = (family == "constant")
+            bypass.intra = (family == "constant"),
+            cv.strict = (family != "constant")
           )
         }
 
@@ -264,16 +256,6 @@ classify_rf <- function(representation) {
     seed = 1,
     classification = TRUE, probability = TRUE
   )
-
-  # perf <- confusionMatrix(model$predictions, representation$target)
-  #
-  # if (is.matrix(perf$byClass)) {
-  #   perf$byClass[, "F1"] %>%
-  #     replace_na(0) %>%
-  #     mean()
-  # } else {
-  #   perf$byClass["F1"]
-  # }
 
   roc(representation$target, model$predictions[, 1], quiet = TRUE, smooth = TRUE, smooth.n = 10)
 }
