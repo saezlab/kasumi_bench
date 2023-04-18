@@ -135,7 +135,7 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
             minu = minu, minm = minm,
             results.folder = paste0(top.folder, "/sample", names(all.cells)[i], "/"),
-            bypass.intra = TRUE
+            bypass.intra = (family == "constant")
           )
         }
 
@@ -202,7 +202,7 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
 
   # the filtering here also matters
   clean <- sig %>%
-    select(-sample, -contains("intra_")) %>%
+    select(-sample, -contains("_.novar")) %>%
     slice(keep) %>%
     select(where(~ sum(.) != 0))
 
@@ -218,8 +218,23 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   return(sm.repr)
 }
 
-misty_labels <- function(misty.results) {
-
+misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
+  sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
+  sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
+  sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
+  
+  keep <- which(sig %>% select(-sample, -contains("intra_")) %>% rowSums() != 0)
+  
+  ws.repr <- sig %>% mutate(sample = str_extract(sample, "sample.*") %>% 
+                            str_remove("^sample")) %>%
+    select(-contains("_.novar")) %>%
+    slice(keep) %>%
+    column_to_rownames("sample") %>%
+    select(where(~ sum(.) != 0)) %>%
+    select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
+    rownames_to_column("sample")
+  
+  return(ws.repr)
 }
 
 
