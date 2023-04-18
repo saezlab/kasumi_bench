@@ -36,7 +36,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 75, 150, 20, 3, "DCISexpr", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 75, 150, 20, 2, "DCISexpr", "gaussian")
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
@@ -60,6 +60,8 @@ freq.sm <- sm.repr %>%
 
 
 roc.sm.dcis <- classify(freq.sm)
+
+write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
 
 ## WS DCIS ----
 
@@ -100,7 +102,7 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 200px = 75um window
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, 3, "CTCLexpr", "gaussian")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, 2, "CTCLexpr", "gaussian")
 
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
@@ -123,6 +125,8 @@ freq.sm <- sm.repr %>%
 
 
 roc.sm.ctcl <- classify(freq.sm)
+
+write_rds(roc.sm.ctcl, "rocs/ctcl.expr.rds")
 
 ## WS CTCL ----
 
@@ -222,6 +226,8 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 roc.sm.bc <- classify(freq.sm)
+
+write_rds(roc.sm.dcis, "rocs/bc.expr.rds")
 
 ## WS BC ----
 misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr", "gaussian")

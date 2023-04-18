@@ -8,7 +8,7 @@ plan(multisession, workers = 5)
 
 resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
 
-misty.results.ct <- read_rds("DCIStest_ws.rds")
+misty.results.ct <- read_rds("DCISct_ws.rds")
 misty.results.expr <- read_rds("DCISexpr_ws.rds")
 
 ws.repr.ct <- misty_labels(misty.results.ct) %>%
@@ -38,6 +38,8 @@ ws.repr.expr <- misty_labels(misty.results.expr) %>%
 roc.ws.dcis.ct <- classify(ws.repr.ct)
 roc.ws.dcis.expr <- classify(ws.repr.expr)
 
+write_rds(list(ct = roc.ws.dcis.ct, expr = roc.ws.dcis.expr), "rocs/dcis.ws.rds")
+
 
 # CODEX ----
 
@@ -51,7 +53,7 @@ outcome <- lymph %>%
   summarize(Groups = Groups[1], .groups = "drop")
 
 
-misty.results.ct <- read_rds("CTCLtest_ws.rds")
+misty.results.ct <- read_rds("CTCLct_ws.rds")
 misty.results.expr <- read_rds("CTCLexpr_ws.rds")
 
 ws.repr.ct <- misty_labels(misty.results.ct) %>% 
@@ -69,6 +71,8 @@ ws.repr.expr <- misty_labels(misty.results.expr) %>%
 roc.ws.ctcl.ct <- classify(ws.repr.ct)
 roc.ws.ctcl.expr <- classify(ws.repr.expr)
 
+write_rds(list(ct = roc.ws.ctcl.ct, expr = roc.ws.ctcl.expr), "rocs/ctcl.ws.rds")
+
 
 # IMC ----
 
@@ -80,7 +84,7 @@ resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
 
-misty.results.ct <- read_rds("BCtest_ws.rds")
+misty.results.ct <- read_rds("BCct_ws.rds")
 misty.results.expr <- read_rds("BCexpr_ws.rds")
 
 ws.repr.ct <- misty_labels(misty.results.ct) %>% 
@@ -97,4 +101,6 @@ ws.repr.expr <- misty_labels(misty.results.expr) %>%
 
 roc.ws.bc.ct <- classify(ws.repr.ct)
 roc.ws.bc.expr <- classify(ws.repr.expr)
+
+write_rds(list(ct = roc.ws.bc.ct, expr = roc.ws.bc.expr), "rocs/bc.ws.rds")
 

@@ -43,7 +43,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 150, 20, 3, "DCIStest")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 150, 20, 2, "DCISct")
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
@@ -71,7 +71,7 @@ roc.sm <- classify(freq.sm)
 
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCIStest")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct")
 
 ## Alternatives DCIS ----
 
@@ -122,6 +122,7 @@ markov.dcis <- all.cells.dcis %>%
 # 0.516
 roc.pa <- classify(markov.dcis)
 
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
 
 ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
   geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
@@ -172,7 +173,7 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 200px = 75um window
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, 3, "CTCLtest")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, 2, "CTCLct")
 
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
@@ -200,7 +201,7 @@ roc.sm <- classify(freq.sm)
 
 ## WS CTCL ----
 
-misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLtest")
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct")
 
 ## Alternatives CTCL ----
 
@@ -254,6 +255,8 @@ markov.lymph <- all.cells.lymph %>%
 # 0.658
 roc.pa <- classify(markov.lymph)
 
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
+
 ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
   geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
   labs(color = NULL) +
@@ -304,8 +307,7 @@ all.positions.bc <- cores %>% map(\(clus){
 
 ## SM BC ----
 
-# change others to minm=2?
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, 2, "BCtest")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, 2, "BCct")
 
 resp <- bmeta %>%
   filter(
@@ -339,7 +341,7 @@ roc.sm <- classify(freq.sm)
 
 ## WS BC ----
 
-misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCtest")
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct")
 
 
 ## Alternatives BC ----
@@ -391,6 +393,8 @@ markov.bc <- all.cells.bc %>%
 
 # 0.658
 roc.pa <- classify(markov.bc)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")
 
 ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
   geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
