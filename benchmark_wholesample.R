@@ -1,7 +1,5 @@
 source("utils.R")
 
-plan(multisession, workers = 5)
-
 # MIBI  ----
 
 ## DCIS progression ----
@@ -79,6 +77,20 @@ write_rds(list(ct = roc.ws.ctcl.ct, expr = roc.ws.ctcl.expr), "rocs/ctcl.ws.rds"
 ## BC responders ----
 
 bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
+
+with_seed(
+  1,
+  cores <- bmeta %>%
+    filter(
+      diseasestatus == "tumor",
+      response %in% c("Sensitive", "Resistant"),
+      clinical_type == "HR+HER2-", Subtype == "PR+ER+"
+    ) %>%
+    group_by(response) %>%
+    slice_sample(n = 15) %>%
+    arrange(core) %>%
+    pull(core)
+)
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%

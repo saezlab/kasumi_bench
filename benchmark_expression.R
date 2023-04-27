@@ -1,6 +1,6 @@
 source("utils.R")
 
-plan(multisession, workers = 5)
+options(future.globals.maxSize = 2024^3)
 
 # MIBI  ----
 
@@ -36,8 +36,10 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+plan(multisession, workers = 9)
 misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, 2, "DCISexpr", "gaussian")
 
+plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
   filter(target %in% c("progressor", "nonprogressor")) %>%
@@ -102,8 +104,10 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 200px = 75um window
+plan(multisession, workers = 9)
 misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, 2, "CTCLexpr", "gaussian")
 
+plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
@@ -144,14 +148,19 @@ panel <- read_csv("data/BCIMC/Basel_Zuri_StainingPanel.csv") %>%
 
 wi <- read_csv("data/BCIMC/Basel_Zuri_WholeImage.csv")
 
-cores <- bmeta %>%
-  filter(
-    diseasestatus == "tumor",
-    response %in% c("Sensitive", "Resistant"),
-    clinical_type == "HR+HER2-", Subtype == "PR+ER+"
-  ) %>%
-  arrange(core) %>%
-  pull(core)
+with_seed(
+  1,
+  cores <- bmeta %>%
+    filter(
+      diseasestatus == "tumor",
+      response %in% c("Sensitive", "Resistant"),
+      clinical_type == "HR+HER2-", Subtype == "PR+ER+"
+    ) %>%
+    group_by(response) %>%
+    slice_sample(n = 15) %>%
+    arrange(core) %>%
+    pull(core)
+)
 
 
 obj.ids <- bmeta %>%
@@ -227,7 +236,7 @@ freq.sm <- sm.repr %>%
 
 roc.sm.bc <- classify(freq.sm)
 
-write_rds(roc.sm.dcis, "rocs/bc.expr.rds")
+write_rds(roc.sm.bc, "rocs/bc.expr.rds")
 
 ## WS BC ----
 misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr", "gaussian")

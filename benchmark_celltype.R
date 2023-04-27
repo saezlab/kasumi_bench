@@ -1,8 +1,6 @@
 source("utils.R")
 
 
-plan(multisession, workers = 5)
-
 
 # MIBI  ----
 
@@ -43,7 +41,11 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+plan(multisession, workers = 9)
+
 misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, 2, "DCISct")
+
+plan(multisession, workers = 9)
 
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
   rename(id = PointNumber, target = Status) %>%
@@ -51,10 +53,13 @@ param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status)
   mutate(id = as.character(id), target = as.factor(target)))
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-# sm.repr <- sm_labels(misty.results, cuts = 0.5, res = 0.6)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
+# technically we can also use markov_repr (pa_repr) instead of freq or combine both
+# otherwise freq + filtering should be included in sm_labels
+# filering here is that the tile pattern/label/cluster should be present in
+# more than 5 or 10% of the slides, whichever is larger
 freq.sm <- sm.repr %>%
   map_dfr(~ .x %>%
     select(-c(id, x, y)) %>%
@@ -66,7 +71,6 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-# 0.779
 roc.sm <- classify(freq.sm)
 
 ## WS DCIS ----
@@ -91,7 +95,6 @@ freq.cn <- cn.repr %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-# 0.502
 roc.cn <- classify(freq.cn)
 
 freq.dcis <- all.cells.dcis %>%
@@ -105,7 +108,6 @@ freq.dcis <- all.cells.dcis %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target))
 
-# 0.448
 roc.fr <- classify(freq.dcis)
 
 markov.dcis <- all.cells.dcis %>%
@@ -119,7 +121,6 @@ markov.dcis <- all.cells.dcis %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target))
 
-# 0.516
 roc.pa <- classify(markov.dcis)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
@@ -157,7 +158,7 @@ all.cells.lymph <- spots %>% map(\(id){
     map(~ .x == cts) %>%
     rlist::list.rbind() %>%
     `colnames<-`(make.names(cts)) %>%
-    as_tibble()
+    as_tibble(.name_repair = "unique")
 })
 
 names(all.cells.lymph) <- spots
@@ -173,15 +174,16 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 200px = 75um window
+plan(multisession, workers = 9)
 misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, 2, "CTCLct")
 
+plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
-  mutate(id = as.character(id), target = as.factor(make.names(target))), minsamp = 0.2)
+  mutate(id = as.character(id), target = as.factor(make.names(target))))
 
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-# sm.repr <- sm_labels(misty.results, cuts = 0.6, res = 0.9)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -196,7 +198,6 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
-# 0.932
 roc.sm <- classify(freq.sm)
 
 ## WS CTCL ----
@@ -222,7 +223,6 @@ freq.cn <- cn.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
-# 0.625
 roc.cn <- classify(freq.cn)
 
 
@@ -238,7 +238,6 @@ freq.lymph <- all.cells.lymph %>%
   mutate(target = as.factor(make.names(target)))
 
 
-# 0.4875
 roc.fr <- classify(freq.lymph)
 
 markov.lymph <- all.cells.lymph %>%
@@ -252,7 +251,6 @@ markov.lymph <- all.cells.lymph %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target)))
 
-# 0.658
 roc.pa <- classify(markov.lymph)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
@@ -268,18 +266,24 @@ ggsave("roc.codex.pdf")
 
 ## BC responders ----
 bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
-cores <- bmeta %>%
-  filter(
-    diseasestatus == "tumor",
-    response %in% c("Sensitive", "Resistant"),
-    clinical_type == "HR+HER2-", Subtype == "PR+ER+"
-  ) %>%
-  pull(core)
+with_seed(
+  1,
+  cores <- bmeta %>%
+    filter(
+      diseasestatus == "tumor",
+      response %in% c("Sensitive", "Resistant"),
+      clinical_type == "HR+HER2-", Subtype == "PR+ER+"
+    ) %>%
+    group_by(response) %>%
+    slice_sample(n = 15) %>%
+    pull(core)
+)
 bclusters <- read_csv("data/BCIMC/Cluster_labels/Basel_metaclusters.csv") %>%
   mutate(core = str_remove(id, "_\\d+$")) %>%
   filter(core %in% cores)
 scloc <- read_csv("data/BCIMC/singlecell_locations/Basel_SC_locations.csv") %>%
   filter(core %in% cores)
+
 
 cts <- bclusters %>%
   pull(cluster) %>%
@@ -309,13 +313,7 @@ all.positions.bc <- cores %>% map(\(clus){
 
 misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, 2, "BCct")
 
-resp <- bmeta %>%
-  filter(
-    diseasestatus == "tumor",
-    response %in% c("Sensitive", "Resistant"),
-    clinical_type == "HR+HER2-", Subtype == "PR+ER+"
-  ) %>%
-  select(core, response)
+resp <- bmeta %>% filter(core %in% cores) %>% select(core, response)
 
 param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
@@ -363,7 +361,6 @@ freq.cn <- cn.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id)
 
-# 0.4475
 roc.cn <- classify(freq.cn)
 
 freq.bc <- all.cells.bc %>%
@@ -377,7 +374,6 @@ freq.bc <- all.cells.bc %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-core)
 
-# 0.509
 roc.fr <- classify(freq.bc)
 
 markov.bc <- all.cells.bc %>%
@@ -391,7 +387,6 @@ markov.bc <- all.cells.bc %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-core)
 
-# 0.658
 roc.pa <- classify(markov.bc)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")

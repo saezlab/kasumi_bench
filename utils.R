@@ -10,6 +10,7 @@ library(ranger)
 library(caret)
 library(pROC)
 library(ClusterR)
+library(withr)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -44,9 +45,11 @@ markov_repr <- function(labels, positions) {
 
 # representation can be cns or sliding misty signatures
 leiden_onsnn <- function(representation, nn = 30, minjac = 0.15, resolution = 0.8) {
-  set.seed(1)
   neighbors <- find_knn(representation, nn, distance = "cosine")
-  snn <- simil(neighbors$index, "eJaccard")
+  with_seed(
+    1,
+    snn <- simil(neighbors$index, "eJaccard")
+  )
   snn[snn < minjac] <- 0
 
   groups <-
@@ -57,21 +60,24 @@ leiden_onsnn <- function(representation, nn = 30, minjac = 0.15, resolution = 0.
 }
 
 leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure = "cosine") {
-  set.seed(1)
   sim <- simil(representation, measure)
 
   sim[sim < minsim] <- 0
-
-  groups <-
-    graph.adjacency(sim %>% as.matrix(), mode = "undirected", weighted = TRUE) %>%
-    cluster_leiden(resolution_parameter = resolution, n_iterations = -1)
+  with_seed(
+    1,
+    groups <-
+      graph.adjacency(sim %>% as.matrix(), mode = "undirected", weighted = TRUE) %>%
+      cluster_leiden(resolution_parameter = resolution, n_iterations = -1)
+  )
 
   return(groups$membership)
 }
 
 kmeans_ondist <- function(representation, k = 10) {
-  set.seed(1)
-  clust <- KMeans_rcpp(representation, k)
+  with_seed(
+    1,
+    clust <- KMeans_rcpp(representation, k)
+  )
   return(clust$clusters)
 }
 
@@ -214,18 +220,19 @@ misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
   sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
   sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
-  
+
   keep <- which(sig %>% select(-sample, -contains("intra_")) %>% rowSums() != 0)
-  
-  ws.repr <- sig %>% mutate(sample = str_extract(sample, "sample.*") %>% 
-                            str_remove("^sample")) %>%
+
+  ws.repr <- sig %>%
+    mutate(sample = str_extract(sample, "sample.*") %>%
+      str_remove("^sample")) %>%
     select(-contains("_.novar")) %>%
     slice(keep) %>%
     column_to_rownames("sample") %>%
     select(where(~ sum(.) != 0)) %>%
     select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
     rownames_to_column("sample")
-  
+
   return(ws.repr)
 }
 
@@ -233,15 +240,17 @@ misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
 # the column target in the representation table is the ground truth
 # returns ROC based on 10-fold cv predictions
 classify <- function(representation, plot = FALSE) {
-  set.seed(1)
-  suppressWarnings(
-    model <- train(target ~ ., representation,
-      method = "glm", metric = "ROC",
-      trControl = trainControl(
-        method = "cv", number = 10,
-        classProbs = TRUE,
-        summaryFunction = twoClassSummary,
-        savePredictions = TRUE
+  with_seed(
+    1,
+    suppressWarnings(
+      model <- train(target ~ ., representation,
+        method = "glm", metric = "ROC",
+        trControl = trainControl(
+          method = "cv", number = 10,
+          classProbs = TRUE,
+          summaryFunction = twoClassSummary,
+          savePredictions = TRUE
+        )
       )
     )
   )
@@ -261,25 +270,25 @@ classify_rf <- function(representation) {
 }
 
 optimal_smclust <- function(misty.results, true.labels, funct = classify) {
-  grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
-    seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
-      sm.repr <- sm_labels(misty.results, cuts, res)
-
-      repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
-
-      perf <- try(
-        sm.repr %>% map_dfr(~ .x %>%
-          select(-c(id, x, y)) %>%
-          freq_repr()) %>%
-          select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
-          add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
-          drop_na() %>% select(-id) %>% funct()
-      )
-      
-      auc <- ifelse(class(perf) == "try-error", 0, perf$auc)
-      print(paste(cuts, res, as.numeric(auc)))
-      tibble_row(cut = cuts, res = res, perf = as.numeric(auc))
-    })
-  }, .options = furrr_options(seed = 1))
+    grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
+      seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
+        sm.repr <- sm_labels(misty.results, cuts, res)
+  
+        repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+  
+        perf <- try(
+          sm.repr %>% map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+            select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
+            add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
+            drop_na() %>% select(-id) %>% funct()
+        )
+  
+        auc <- ifelse(class(perf) == "try-error", 0, perf$auc)
+        print(paste(cuts, res, as.numeric(auc)))
+        tibble_row(cut = cuts, res = res, perf = as.numeric(auc))
+      })
+    }, .options = furrr_options(seed = NULL))
   grid[which.max(grid$perf), ] %>% unlist()
 }

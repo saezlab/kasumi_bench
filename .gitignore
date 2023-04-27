@@ -8,5 +8,6 @@ MIBI*
 *.rds
 *.pdf
 *.txt
+*.gz
 .DS_Store
 .Rhistory
