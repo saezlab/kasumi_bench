@@ -125,14 +125,6 @@ roc.pa <- classify(markov.dcis)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
 
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
-  labs(color = NULL) +
-  ggtitle("MIBI DCIS") + theme_classic()
-
-ggsave("roc.mibi.pdf")
-
-
 # CODEX ----
 
 ## CTCL responders  ----
@@ -254,13 +246,6 @@ markov.lymph <- all.cells.lymph %>%
 roc.pa <- classify(markov.lymph)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
-
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
-  labs(color = NULL) +
-  ggtitle("CODEX CTCL") + theme_classic()
-
-ggsave("roc.codex.pdf")
 
 # IMC ----
 
@@ -390,10 +375,3 @@ markov.bc <- all.cells.bc %>%
 roc.pa <- classify(markov.bc)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")
-
-ggroc(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
-  labs(color = NULL) +
-  ggtitle("IMC BC") + theme_classic()
-
-ggsave("roc.imc.pdf")
