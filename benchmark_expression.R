@@ -208,13 +208,13 @@ names(all.cells.bc) <- cores
 all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
 
 ## SM BC ----
-
+plan(multisession, workers = 9)
 misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, 2, "BCexpr", "gaussian")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
-
+plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))

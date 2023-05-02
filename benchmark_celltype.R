@@ -1,7 +1,5 @@
 source("utils.R")
 
-
-
 # MIBI  ----
 
 ## DCIS progression ----
@@ -296,10 +294,12 @@ all.positions.bc <- cores %>% map(\(clus){
 
 ## SM BC ----
 
+plan(multisession, workers = 9)
 misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, 2, "BCct")
 
 resp <- bmeta %>% filter(core %in% cores) %>% select(core, response)
 
+plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))

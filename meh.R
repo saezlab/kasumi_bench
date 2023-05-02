@@ -60,3 +60,16 @@ ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), leg
   ggtitle("IMC BC") + theme_classic()
 
 ggsave("roc.misty.imc.pdf")
+
+
+sens <- read_csv("sensitivity.csv") %>% pivot_longer(-c(cut,res), names_to = "Data", values_to = "AUC") %>% 
+  mutate(across(c(cut,res), as.factor)) %>% rename(Threshold = cut, Resolution = res)
+
+ggplot(sens, aes(y = Resolution, x = Threshold, fill = AUC)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "gray50", high = "tomato3", limits = c(0.5,1)) +
+  facet_wrap("Data", ncol = 2) +
+  coord_equal() +
+  theme_classic()
+
+ggsave("sensitivity.pdf")
