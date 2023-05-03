@@ -239,7 +239,7 @@ misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
 
 # the column target in the representation table is the ground truth
 # returns ROC based on 10-fold cv predictions
-classify <- function(representation, plot = FALSE) {
+classify <- function(representation) {
   with_seed(
     1,
     suppressWarnings(
@@ -292,3 +292,47 @@ optimal_smclust <- function(misty.results, true.labels, funct = classify) {
     }, .options = furrr_options(seed = NULL))
   grid[which.max(grid$perf), ] %>% unlist()
 }
+
+
+# Fisher, Rudin, Dominici, JMLR, 2019
+model_reliance <- function(freq.sm){
+  model <- glm(target ~ ., freq.sm, family = "binomial")
+  
+  eorig <- classify(freq.sm)
+  cat(paste0("AUC: ", eorig$auc))
+  
+  with_seed(
+    1,
+    splitr <- runif(nrow(freq.sm)) %>% rank()
+  )
+  
+  nas <- names(which(is.na(coef(model)[-1])))
+  
+  eswitch <- freq.sm %>% select(-target, -nas) %>% colnames() %>% map_dbl(\(cname){
+    classify(freq.sm %>% select(-nas) %>% 
+               mutate(!!cname := freq.sm[splitr,cname] %>% unlist()))$auc
+  })
+  
+  mr <- sign(coef(model, complete = FALSE)[-1]) * eorig$auc/eswitch
+  
+  ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>% 
+           mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
+           mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
+    geom_segment(aes(x=Cluster, xend=Cluster, y=0, yend=sMR)) +
+    geom_point(aes(x=Cluster, y=sMR, color = sMR)) +
+    scale_color_steps2(low = "darkgreen", mid = "white", high = "blue3") +
+    geom_hline(yintercept = 0, color = "gray50") +
+    geom_hline(yintercept = 1, color = "gray70", linetype = "dashed") +
+    geom_hline(yintercept = -1, color = "gray70", linetype = "dashed") +
+    geom_label(label = paste("\u2190", ifelse(eorig$direction == ">", eorig$levels[2], eorig$levels[1])), x = length(mr), y = -1) +
+    geom_label(label = paste(ifelse(eorig$direction == ">", eorig$levels[1], eorig$levels[2]), "\u2192"), x = 1, y = 1) +
+    coord_flip() +
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      axis.line.y = element_blank(),
+      axis.ticks.y = element_blank()
+    )
+  
+}
+

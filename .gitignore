@@ -11,3 +11,4 @@ MIBI*
 *.gz
 .DS_Store
 .Rhistory
+*.xlsx
