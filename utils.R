@@ -336,3 +336,30 @@ model_reliance <- function(freq.sm){
   
 }
 
+
+describe_cluster <- function(sm.repr, cluster, folder.prefix){
+  cname <- paste0("...",cluster)
+  sm.repr.all <- reduce(sm.repr, rbind)
+  left <- sm.repr.all %>% filter(if_any(!!cname)) %>% select(id, x, y)
+  
+  all.folders <- list.files(folder.prefix, paste0("sample(", paste0(unique(left$id), collapse = "|"),")"), full.names = TRUE) %>% 
+    map(~list.dirs(.)[-1]) %>% unlist()
+  
+  right <- tibble(sample = all.folders) %>%
+    mutate(
+      id = str_extract(sample, "sample.*/") %>% str_remove("/") %>% str_remove("^sample"),
+      box = str_extract(sample, "/[0-9].*$") %>% str_remove("/")
+    ) %>%
+    rowwise(id) %>%
+    summarize(sample = sample, rebox = box %>%
+                str_split("_", simplify = T) %>%
+                as.numeric() %>% list(), .groups = "drop") %>%
+    rowwise(id) %>%
+    summarize(sample = sample,
+      xcenter = (rebox[3] + rebox[1]) / 2,
+      ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
+    ) 
+    
+  left %>% left_join(right, by =c("id", "x" = "xcenter", "y" = "ycenter")) %>% 
+    pull(sample) %>% collect_results()
+}

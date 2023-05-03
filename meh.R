@@ -5,6 +5,8 @@ ct <- read_rds("rocs/dcis.ct.rds")
 expr <- read_rds("rocs/dcis.expr.rds")
 ws <- read_rds("rocs/dcis.ws.rds")
 
+resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
+
 ggroc(ct, legacy.axes = TRUE) +
   geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
   labs(color = NULL) +
@@ -24,8 +26,6 @@ sm.repr <- sm_labels(misty.results, 0.3, 0.6)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
-resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
-
 freq.sm <- sm.repr %>%
   map_dfr(~ .x %>%
             select(-c(id, x, y)) %>%
@@ -38,7 +38,10 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
-  
+
+misty.cluster <- describe_cluster(sm.repr, 18, "DCISct")  
+
+misty.cluster %>% plot_interaction_heatmap("para.10", trim = 1, clean = TRUE)
 
 misty.results <- read_rds("DCISexpr.rds")
 
@@ -57,7 +60,7 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-repr_model_stats(freq.sm)
+model_reliance(freq.sm)
 
 
 # CODEX ----
