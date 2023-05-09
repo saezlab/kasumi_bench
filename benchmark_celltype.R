@@ -54,10 +54,6 @@ sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["re
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
-# technically we can also use markov_repr (pa_repr) instead of freq or combine both
-# otherwise freq + filtering should be included in sm_labels
-# filering here is that the tile pattern/label/cluster should be present in
-# more than 5 or 10% of the slides, whichever is larger
 freq.sm <- sm.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
@@ -99,8 +95,8 @@ freq.dcis <- all.cells.dcis %>%
 
 roc.fr <- classify(freq.dcis)
 
-markov.dcis <- all.cells.dcis %>%
-  map2(all.positions.dcis, markov_repr) %>%
+pa.dcis <- all.cells.dcis %>%
+  map2(all.positions.dcis, pa_repr) %>%
   list_transpose() %>%
   as_tibble(.name_repair = "unique") %>%
   mutate(PointNumber = points) %>%
@@ -110,7 +106,7 @@ markov.dcis <- all.cells.dcis %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target))
 
-roc.pa <- classify(markov.dcis)
+roc.pa <- classify(pa.dcis)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
 
@@ -211,8 +207,8 @@ freq.lymph <- all.cells.lymph %>%
 
 roc.fr <- classify(freq.lymph)
 
-markov.lymph <- all.cells.lymph %>%
-  map2(all.positions.lymph, markov_repr) %>%
+pa.lymph <- all.cells.lymph %>%
+  map2(all.positions.lymph, pa_repr) %>%
   list_transpose() %>%
   as_tibble(.name_repair = "unique") %>%
   mutate(Spots = spots) %>%
@@ -222,7 +218,7 @@ markov.lymph <- all.cells.lymph %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target)))
 
-roc.pa <- classify(markov.lymph)
+roc.pa <- classify(pa.lymph)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
 
@@ -333,8 +329,8 @@ freq.bc <- all.cells.bc %>%
 
 roc.fr <- classify(freq.bc)
 
-markov.bc <- all.cells.bc %>%
-  map2(all.positions.bc, markov_repr) %>%
+pa.bc <- all.cells.bc %>%
+  map2(all.positions.bc, pa_repr) %>%
   list_transpose() %>%
   as_tibble(.name_repair = "unique") %>%
   mutate(core = cores) %>%
@@ -344,6 +340,6 @@ markov.bc <- all.cells.bc %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-core)
 
-roc.pa <- classify(markov.bc)
+roc.pa <- classify(pa.bc)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")

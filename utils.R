@@ -6,7 +6,6 @@ library(knn.covertree)
 library(proxy)
 library(igraph)
 library(readxl)
-library(ranger)
 library(caret)
 library(pROC)
 library(ClusterR)
@@ -20,8 +19,7 @@ freq_repr <- function(labels) {
   colSums(labels) / sum(labels)
 }
 
-
-markov_repr <- function(labels, positions) {
+pa_repr <- function(labels, positions) {
   dist1 <- find_knn(positions, 1)$dist
   threshold <- 2 * sd(dist1) + mean(dist1)
   misty.views <- create_initial_view(labels) %>%
@@ -41,22 +39,6 @@ markov_repr <- function(labels, positions) {
     replace(is.na(.), 0) %>%
     as.matrix() %>%
     as.numeric()
-}
-
-# representation can be cns or sliding misty signatures
-leiden_onsnn <- function(representation, nn = 30, minjac = 0.15, resolution = 0.8) {
-  neighbors <- find_knn(representation, nn, distance = "cosine")
-  with_seed(
-    1,
-    snn <- simil(neighbors$index, "eJaccard")
-  )
-  snn[snn < minjac] <- 0
-
-  groups <-
-    graph.adjacency(snn %>% as.matrix(), mode = "undirected", weighted = TRUE) %>%
-    cluster_leiden(resolution_parameter = resolution, n_iterations = -1)
-
-  return(groups$membership)
 }
 
 leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure = "cosine") {
@@ -104,12 +86,13 @@ cn_labels <- function(neighborhoods, k) {
       as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>%
       group_split()
   )
-  
+
   repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
-  
-  freq.cncn <- cn.repr %>% map_dfr(~ .x %>%
-            select(-c(id, x, y)) %>%
-            freq_repr()) %>%
+
+  freq.cncn <- cn.repr %>%
+    map_dfr(~ .x %>%
+      select(-c(id, x, y)) %>%
+      freq_repr()) %>%
     select(where(~ (sd(.) > 1e-3))) %>%
     add_column(id = repr.ids.cn)
 
@@ -208,22 +191,23 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
     slice(keep) %>%
     select(where(~ sum(.) != 0))
 
-  
+
   clusters <- leiden_onsim(clean, cuts, res)
 
   suppressMessages(
     sm.repr <- map(clusters, ~ .x == seq(length(unique(clusters)))) %>% reduce(rbind) %>%
-      as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>% 
+      as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>%
       rename(x = xcenter, y = ycenter) %>%
       group_split()
   )
-  
+
   repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
-  
+
+  # technically we can also use pa_repr instead of freq_repr or combine both
   freq.sm <- sm.repr %>%
     map_dfr(~ .x %>%
-              select(-c(id, x, y)) %>%
-              freq_repr()) %>%
+      select(-c(id, x, y)) %>%
+      freq_repr()) %>%
     select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
     add_column(id = repr.ids, .before = 1)
 
@@ -272,63 +256,55 @@ classify <- function(representation) {
   roc(model$pred$obs, model$pred[, 3], quiet = TRUE)
 }
 
-# the column target in the representation table is the ground truth
-# returns macro F1 per class based on 10-fold cv predictions
-classify_rf <- function(representation) {
-  model <- ranger(target ~ ., representation,
-    seed = 1,
-    classification = TRUE, probability = TRUE
-  )
+optimal_smclust <- function(misty.results, true.labels) {
+  grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
+    seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
+      freq.sm <- sm_labels(misty.results, cuts, res)
 
-  roc(representation$target, model$predictions[, 1], quiet = TRUE, smooth = TRUE, smooth.n = 10)
-}
+      perf <- try(
+        freq.sm %>%
+          add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
+          drop_na() %>% select(-id) %>% classify()
+      )
 
-optimal_smclust <- function(misty.results, true.labels, funct = classify) {
-    grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
-      seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
-        freq.sm <- sm_labels(misty.results, cuts, res)
-  
-        perf <- try(
-          freq.sm %>%
-            add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
-            drop_na() %>% select(-id) %>% funct()
-        )
-  
-        auc <- ifelse(class(perf) == "try-error", 0, perf$auc)
-        print(paste(cuts, res, as.numeric(auc)))
-        tibble_row(cut = cuts, res = res, perf = as.numeric(auc))
-      })
-    }, .options = furrr_options(seed = NULL))
+      auc <- ifelse(class(perf) == "try-error", 0, perf$auc)
+      print(paste(cuts, res, as.numeric(auc)))
+      tibble_row(cut = cuts, res = res, perf = as.numeric(auc))
+    })
+  }, .options = furrr_options(seed = NULL))
   grid[which.max(grid$perf), ] %>% unlist()
 }
 
 
 # Fisher, Rudin, Dominici, JMLR, 2019
-model_reliance <- function(freq.sm){
+model_reliance <- function(freq.sm) {
   model <- glm(target ~ ., freq.sm, family = "binomial")
-  
+
   eorig <- classify(freq.sm)
   cat(paste0("AUC: ", eorig$auc))
-  
+
   with_seed(
     1,
     splitr <- runif(nrow(freq.sm)) %>% rank()
   )
-  
+
   nas <- names(which(is.na(coef(model)[-1])))
-  
-  eswitch <- freq.sm %>% select(-target, -nas) %>% colnames() %>% map_dbl(\(cname){
-    classify(freq.sm %>% select(-nas) %>% 
-               mutate(!!cname := freq.sm[splitr,cname] %>% unlist()))$auc
-  })
-  
-  mr <- sign(coef(model, complete = FALSE)[-1]) * (1-eswitch)/(1-eorig$auc)
-  
-  ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>% 
-           mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
-           mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
-    geom_segment(aes(x=Cluster, xend=Cluster, y=0, yend=sMR)) +
-    geom_point(aes(x=Cluster, y=sMR, color = sMR)) +
+
+  eswitch <- freq.sm %>%
+    select(-target, -nas) %>%
+    colnames() %>%
+    map_dbl(\(cname){
+      classify(freq.sm %>% select(-nas) %>%
+        mutate(!!cname := freq.sm[splitr, cname] %>% unlist()))$auc
+    })
+
+  mr <- sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
+
+  ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
+    mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
+    mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
+    geom_segment(aes(x = Cluster, xend = Cluster, y = 0, yend = sMR)) +
+    geom_point(aes(x = Cluster, y = sMR, color = sMR)) +
     scale_color_steps2(low = "darkgreen", mid = "white", high = "blue3") +
     geom_hline(yintercept = 0, color = "gray50") +
     geom_hline(yintercept = 1, color = "gray70", linetype = "dashed") +
@@ -342,18 +318,20 @@ model_reliance <- function(freq.sm){
       axis.line.y = element_blank(),
       axis.ticks.y = element_blank()
     )
-  
 }
 
 
-describe_cluster <- function(sm.repr, cluster, folder.prefix){
-  cname <- paste0("...",cluster)
+describe_cluster <- function(sm.repr, cluster, folder.prefix) {
+  cname <- paste0("...", cluster)
   sm.repr.all <- reduce(sm.repr, rbind)
-  left <- sm.repr.all %>% filter(if_any(!!cname)) %>% select(id, x, y)
-  
-  all.folders <- list.files(folder.prefix, paste0("sample(", paste0(unique(left$id), collapse = "|"),")"), full.names = TRUE) %>% 
-    map(~list.dirs(.)[-1]) %>% unlist()
-  
+  left <- sm.repr.all %>%
+    filter(if_any(!!cname)) %>%
+    select(id, x, y)
+
+  all.folders <- list.files(folder.prefix, paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), full.names = TRUE) %>%
+    map(~ list.dirs(.)[-1]) %>%
+    unlist()
+
   right <- tibble(sample = all.folders) %>%
     mutate(
       id = str_extract(sample, "sample.*/") %>% str_remove("/") %>% str_remove("^sample"),
@@ -361,14 +339,17 @@ describe_cluster <- function(sm.repr, cluster, folder.prefix){
     ) %>%
     rowwise(id) %>%
     summarize(sample = sample, rebox = box %>%
-                str_split("_", simplify = T) %>%
-                as.numeric() %>% list(), .groups = "drop") %>%
+      str_split("_", simplify = T) %>%
+      as.numeric() %>% list(), .groups = "drop") %>%
     rowwise(id) %>%
-    summarize(sample = sample,
+    summarize(
+      sample = sample,
       xcenter = (rebox[3] + rebox[1]) / 2,
       ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
-    ) 
-    
-  left %>% left_join(right, by =c("id", "x" = "xcenter", "y" = "ycenter")) %>% 
-    pull(sample) %>% collect_results()
+    )
+
+  left %>%
+    left_join(right, by = c("id", "x" = "xcenter", "y" = "ycenter")) %>%
+    pull(sample) %>%
+    collect_results()
 }
