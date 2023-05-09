@@ -41,7 +41,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 plan(multisession, workers = 9)
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, 2, "DCISct")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, "DCISct")
 
 plan(multisession, workers = 9)
 
@@ -59,12 +59,8 @@ repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 # filering here is that the tile pattern/label/cluster should be present in
 # more than 5 or 10% of the slides, whichever is larger
 freq.sm <- sm.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
-  add_column(id = repr.ids) %>%
-  left_join(resp %>% select(PointNumber, Status) %>% mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+  left_join(resp %>% select(PointNumber, Status) %>%
+    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
@@ -80,15 +76,10 @@ misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct")
 cn.results <- cn_train(all.cells.dcis, all.positions.dcis)
 cn.repr <- cn_labels(cn.results, k = 17)
 
-repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
-
 freq.cn <- cn.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3))) %>%
-  add_column(id = repr.ids.cn) %>%
-  left_join(resp %>% select(PointNumber, Status) %>% mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+  filter(id %in% repr.ids) %>%
+  left_join(resp %>% select(PointNumber, Status) %>%
+    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
   rename(target = Status) %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
@@ -165,7 +156,7 @@ all.positions.lymph <- spots %>% map(\(id){
 
 # 10 neighbors as in publication, 200px = 75um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, 2, "CTCLct")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, "CTCLct")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -178,12 +169,8 @@ sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["re
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
 freq.sm <- sm.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
-  add_column(id = repr.ids) %>%
-  left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  left_join(outcome %>%
+    mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
@@ -199,16 +186,10 @@ misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct")
 cn.results <- cn_train(all.cells.lymph, all.positions.lymph)
 cn.repr <- cn_labels(cn.results, k = 10)
 
-repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
-
 freq.cn <- cn.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3))) %>%
-  add_column(id = repr.ids.cn) %>%
   filter(id %in% repr.ids) %>%
-  left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  left_join(outcome %>%
+    mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
@@ -295,9 +276,11 @@ all.positions.bc <- cores %>% map(\(clus){
 ## SM BC ----
 
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, 2, "BCct")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, "BCct")
 
-resp <- bmeta %>% filter(core %in% cores) %>% select(core, response)
+resp <- bmeta %>%
+  filter(core %in% cores) %>%
+  select(core, response)
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>%
@@ -305,16 +288,10 @@ param.opt <- optimal_smclust(misty.results, resp %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-# sm.repr <- sm_labels(misty.results, cuts = 0.5, res = 0.8)
 
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
 freq.sm <- sm.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
-  add_column(id = repr.ids) %>%
   left_join(resp, by = c("id" = "core")) %>%
   rename(target = response) %>%
   mutate(target = as.factor(make.names(target))) %>%
@@ -335,11 +312,6 @@ cn.repr <- cn_labels(cn.results, k = 6)
 repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
 
 freq.cn <- cn.repr %>%
-  map_dfr(~ .x %>%
-    select(-c(id, x, y)) %>%
-    freq_repr()) %>%
-  select(where(~ (sd(.) > 1e-3))) %>%
-  add_column(id = repr.ids.cn) %>%
   filter(id %in% repr.ids) %>%
   left_join(resp, by = c("id" = "core")) %>%
   rename(target = response) %>%

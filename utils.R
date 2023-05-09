@@ -1,4 +1,4 @@
-library(mistyR) # requires >= 1.99.0
+library(mistyR) # requires >= 1.99.2
 library(future)
 library(tidyverse)
 library(furrr)
@@ -81,8 +81,6 @@ kmeans_ondist <- function(representation, k = 10) {
   return(clust$clusters)
 }
 
-# cns should be calculated on all samples
-# names(all.cells) used as sample ids
 cn_train <- function(all.cells, all.positions) {
   concat <- seq_along(all.cells) %>% map_dfr(\(i){
     misty.views <- create_initial_view(all.cells[[i]]) %>%
@@ -101,19 +99,25 @@ cn_labels <- function(neighborhoods, k) {
   clusters <- kmeans_ondist(neighborhoods %>% select(-c(id, x, y)), k)
   samps <- neighborhoods %>% select(id, x, y)
 
-
-  # return one-hot representation for all all.cells and if needed all.positions
   suppressMessages(
     cn.repr <- map(clusters, ~ .x == seq(length(unique(clusters)))) %>% reduce(rbind) %>%
       as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>%
       group_split()
   )
+  
+  repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
+  
+  freq.cncn <- cn.repr %>% map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+    select(where(~ (sd(.) > 1e-3))) %>%
+    add_column(id = repr.ids.cn)
 
   return(cn.repr)
 }
 
 
-sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder,
+sm_train <- function(all.cells, all.positions, l, window, minu, top.folder,
                      family = "constant") {
   if (file.exists(paste0(top.folder, ".rds"))) {
     misty.results <- read_rds(paste0(top.folder, ".rds"))
@@ -130,7 +134,7 @@ sm_train <- function(all.cells, all.positions, l, window, minu, minm, top.folder
             )
 
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
-            minu = minu, minm = minm,
+            minu = minu,
             results.folder = paste0(top.folder, "/sample", names(all.cells)[i], "/"),
             bypass.intra = (family == "constant"),
             cv.strict = (family != "constant")
@@ -204,16 +208,26 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
     slice(keep) %>%
     select(where(~ sum(.) != 0))
 
-  # think about gain.R2 as node weights
+  
   clusters <- leiden_onsim(clean, cuts, res)
 
   suppressMessages(
     sm.repr <- map(clusters, ~ .x == seq(length(unique(clusters)))) %>% reduce(rbind) %>%
-      as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>% rename(x = xcenter, y = ycenter) %>%
+      as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>% 
+      rename(x = xcenter, y = ycenter) %>%
       group_split()
   )
+  
+  repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+  
+  freq.sm <- sm.repr %>%
+    map_dfr(~ .x %>%
+              select(-c(id, x, y)) %>%
+              freq_repr()) %>%
+    select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
+    add_column(id = repr.ids, .before = 1)
 
-  return(sm.repr)
+  return(freq.sm)
 }
 
 misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
@@ -272,15 +286,10 @@ classify_rf <- function(representation) {
 optimal_smclust <- function(misty.results, true.labels, funct = classify) {
     grid <- seq(0.1, 0.9, 0.1) %>% future_map_dfr(\(cuts){
       seq(0.5, 0.9, 0.1) %>% map_dfr(\(res){
-        sm.repr <- sm_labels(misty.results, cuts, res)
-  
-        repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+        freq.sm <- sm_labels(misty.results, cuts, res)
   
         perf <- try(
-          sm.repr %>% map_dfr(~ .x %>%
-            select(-c(id, x, y)) %>%
-            freq_repr()) %>%
-            select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.))))) %>%
+          freq.sm %>%
             add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
             drop_na() %>% select(-id) %>% funct()
         )
@@ -313,7 +322,7 @@ model_reliance <- function(freq.sm){
                mutate(!!cname := freq.sm[splitr,cname] %>% unlist()))$auc
   })
   
-  mr <- sign(coef(model, complete = FALSE)[-1]) * eorig$auc/eswitch
+  mr <- sign(coef(model, complete = FALSE)[-1]) * (1-eswitch)/(1-eorig$auc)
   
   ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>% 
            mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
