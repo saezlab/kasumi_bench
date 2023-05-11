@@ -52,7 +52,7 @@ param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status)
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
-repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+repr.ids <- sm.repr %>% pull(id)
 
 freq.sm <- sm.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
@@ -162,7 +162,7 @@ param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
-repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+repr.ids <- sm.repr %>% pull(id)
 
 freq.sm <- sm.repr %>%
   left_join(outcome %>%
@@ -285,7 +285,7 @@ param.opt <- optimal_smclust(misty.results, resp %>%
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
-repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+repr.ids <- sm.repr %>% pull(id)
 
 freq.sm <- sm.repr %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -304,8 +304,6 @@ misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct")
 
 cn.results <- cn_train(all.cells.bc, all.positions.bc)
 cn.repr <- cn_labels(cn.results, k = 6)
-
-repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
 
 freq.cn <- cn.repr %>%
   filter(id %in% repr.ids) %>%

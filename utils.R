@@ -89,14 +89,14 @@ cn_labels <- function(neighborhoods, k) {
 
   repr.ids.cn <- cn.repr %>% map_chr(~ .x$id[1])
 
-  freq.cncn <- cn.repr %>%
+  freq.cn <- cn.repr %>%
     map_dfr(~ .x %>%
       select(-c(id, x, y)) %>%
       freq_repr()) %>%
     select(where(~ (sd(.) > 1e-3))) %>%
     add_column(id = repr.ids.cn)
 
-  return(cn.repr)
+  return(freq.cn)
 }
 
 
@@ -159,6 +159,7 @@ misty_train <- function(all.cells, all.positions, l, top.folder, family = "const
   }
   return(misty.results)
 }
+
 
 sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   # trimming matters
