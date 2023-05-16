@@ -32,8 +32,11 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
+ggsave("dcis.ct.reliance.pdf")
 
-misty.cluster <- describe_cluster(sm.repr, 18, "DCISct")
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.6, freq=FALSE)
+
+misty.cluster <- describe_cluster(sm.repr.ext, 3, "DCISct.sqm")
 
 misty.cluster %>% plot_interaction_heatmap("para.10", trim = 1, clean = TRUE)
 
@@ -49,6 +52,13 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
+ggsave("dcis.expr.reliance.pdf")
+
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq=FALSE)
+
+misty.cluster <- describe_cluster(sm.repr.ext, 243, "DCISexpr.sqm")
+
+misty.cluster %>% plot_interaction_heatmap("para.100", trim = 1, cutoff = 1.2, clean = TRUE)
 
 
 # CODEX ----

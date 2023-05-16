@@ -41,7 +41,7 @@ all.positions.dcis <- points %>% map(\(id){
 
 plan(multisession, workers = 9)
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, "DCISct")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, "DCISct.sqm")
 
 plan(multisession, workers = 9)
 
@@ -65,11 +65,11 @@ roc.sm <- classify(freq.sm)
 
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct_ws.sqm")
 
 ## Alternatives DCIS ----
 
-cn.results <- cn_train(all.cells.dcis, all.positions.dcis)
+cn.results <- cn_train(all.cells.dcis, all.positions.dcis, 10)
 cn.repr <- cn_labels(cn.results, k = 17)
 
 freq.cn <- cn.repr %>%
@@ -152,7 +152,7 @@ all.positions.lymph <- spots %>% map(\(id){
 
 # 10 neighbors as in publication, 200px = 75um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, "CTCLct")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, "CTCLct.sqm")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -175,11 +175,11 @@ roc.sm <- classify(freq.sm)
 
 ## WS CTCL ----
 
-misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct")
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct_ws.sqm")
 
 ## Alternatives CTCL ----
 
-cn.results <- cn_train(all.cells.lymph, all.positions.lymph)
+cn.results <- cn_train(all.cells.lymph, all.positions.lymph, 10)
 cn.repr <- cn_labels(cn.results, k = 10)
 
 freq.cn <- cn.repr %>%
@@ -272,7 +272,7 @@ all.positions.bc <- cores %>% map(\(clus){
 ## SM BC ----
 
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, "BCct")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, "BCct.sqm")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
@@ -297,12 +297,12 @@ roc.sm <- classify(freq.sm)
 
 ## WS BC ----
 
-misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct")
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct_ws.sqm")
 
 
 ## Alternatives BC ----
 
-cn.results <- cn_train(all.cells.bc, all.positions.bc)
+cn.results <- cn_train(all.cells.bc, all.positions.bc, 10)
 cn.repr <- cn_labels(cn.results, k = 6)
 
 freq.cn <- cn.repr %>%

@@ -39,7 +39,7 @@ all.positions.dcis <- points %>% map(\(id){
 ## SM DCIS ----
 
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr.sqm", "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
@@ -64,7 +64,7 @@ write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
 
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 100, "DCISexpr", "gaussian")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 100, "DCISexpr_ws.sqm", "gaussian")
 
 # CODEX ----
 
@@ -102,7 +102,7 @@ all.positions.lymph <- spots %>% map(\(id){
 
 # 10 neighbors as in publication, 200px = 75um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, "CTCLexpr", "gaussian")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, "CTCLexpr.sqm", "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -124,7 +124,7 @@ write_rds(roc.sm.ctcl, "rocs/ctcl.expr.rds")
 
 ## WS CTCL ----
 
-misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 100, "CTCLexpr", "gaussian")
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 100, "CTCLexpr_ws.sqm", "gaussian")
 
 # IMC ----
 
@@ -199,7 +199,7 @@ all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
 
 ## SM BC ----
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, "BCexpr", "gaussian")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, "BCexpr.sqm", "gaussian")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
@@ -222,4 +222,4 @@ roc.sm.bc <- classify(freq.sm)
 write_rds(roc.sm.bc, "rocs/bc.expr.rds")
 
 ## WS BC ----
-misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr", "gaussian")
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr_ws.sqm", "gaussian")

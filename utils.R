@@ -1,4 +1,4 @@
-library(mistyR) # requires >= 1.99.2
+library(mistyR) # requires >= 1.99.4
 library(future)
 library(tidyverse)
 library(furrr)
@@ -10,6 +10,8 @@ library(caret)
 library(pROC)
 library(ClusterR)
 library(withr)
+library(DBI)
+library(RSQLite)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -25,7 +27,7 @@ pa_repr <- function(labels, positions) {
   misty.views <- create_initial_view(labels) %>%
     add_juxtaview(positions, neighbor.thr = threshold)
   suppressMessages(
-    neighb <- misty.views[[paste0("juxtaview.", threshold)]]$data %>%
+    neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
       mutate(id = apply(labels, 1, which)) %>%
       add_row(id = seq_len(ncol(labels))) %>%
       replace(is.na(.), 0) %>%
@@ -63,11 +65,11 @@ kmeans_ondist <- function(representation, k = 10) {
   return(clust$clusters)
 }
 
-cn_train <- function(all.cells, all.positions) {
+cn_train <- function(all.cells, all.positions, k) {
   concat <- seq_along(all.cells) %>% map_dfr(\(i){
     misty.views <- create_initial_view(all.cells[[i]]) %>%
-      add_paraview(all.positions[[i]], 10, family = "constant", cache = TRUE)
-    misty.views[["paraview.10"]]$data %>%
+      add_paraview(all.positions[[i]], k, family = "constant", cache = TRUE)
+    misty.views[[paste0("paraview.", k)]] %>%
       add_column(id = names(all.cells)[i]) %>%
       cbind(all.positions[[i]])
   })
@@ -100,16 +102,13 @@ cn_labels <- function(neighborhoods, k) {
 }
 
 
-sm_train <- function(all.cells, all.positions, l, window, minu, top.folder,
+sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
                      family = "constant") {
-  if (file.exists(paste0(top.folder, ".rds"))) {
-    misty.results <- read_rds(paste0(top.folder, ".rds"))
+  if (file.exists(paste0(str_remove(db.file, ".sqm"), ".rds"))) {
+    misty.results <- read_rds(paste0(str_remove(db.file, ".sqm"), ".rds"))
   } else {
     outputs <- seq_along(all.cells) %>%
-      map(\(i){
-        if (dir.exists(paste0(top.folder, "/sample", names(all.cells)[i], "/"))) {
-          folders <- list.dirs(paste0(top.folder, "/sample", names(all.cells)[i], "/"))[-1]
-        } else {
+      walk(\(i){
           misty.views <- create_initial_view(all.cells[[i]]) %>%
             add_paraview(all.positions[[i]], l,
               family = family, cached = TRUE,
@@ -117,29 +116,26 @@ sm_train <- function(all.cells, all.positions, l, window, minu, top.folder,
             )
 
           folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
-            minu = minu,
-            results.folder = paste0(top.folder, "/sample", names(all.cells)[i], "/"),
+            sample.id = paste0("sample", names(all.cells)[i]),
+            results.db = db.file,
             bypass.intra = (family == "constant"),
-            cv.strict = (family != "constant")
+            cv.strict = (family != "constant"),
+            minu = minu
           )
-        }
+      })
 
-        ifelse(length(folders) >= 10, return(folders), return(NA))
-      }) %>%
-      unlist()
-
-    misty.results <- collect_results(outputs[!is.na(outputs)])
-    write_rds(misty.results, paste0(top.folder, ".rds"), "gz")
+    misty.results <- collect_results(db.file)
+    write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
   }
   return(misty.results)
 }
 
-misty_train <- function(all.cells, all.positions, l, top.folder, family = "constant") {
-  if (file.exists(paste0(top.folder, "_ws.rds"))) {
-    misty.results <- read_rds(paste0(top.folder, "_ws.rds"))
+misty_train <- function(all.cells, all.positions, l, db.file, family = "constant") {
+  if (file.exists(paste0(str_remove(db.file, ".sqm"), ".rds"))) {
+    misty.results <- read_rds(paste0(str_remove(db.file, ".sqm"), ".rds"))
   } else {
     outputs <- seq_along(all.cells) %>%
-      map(\(i){
+      walk(\(i){
         misty.views <- create_initial_view(all.cells[[i]]) %>%
           add_paraview(all.positions[[i]], l,
             family = family, cached = TRUE,
@@ -148,20 +144,20 @@ misty_train <- function(all.cells, all.positions, l, top.folder, family = "const
           select_markers("intraview", where(~ sd(.) != 0))
 
         run_misty(misty.views,
-          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/"),
+          results.folder = paste0("sample", names(all.cells)[i]),
+          results.db = db.file,
           bypass.intra = (family == "constant")
         )
-      }) %>%
-      unlist()
+      })
 
-    misty.results <- collect_results(outputs)
-    write_rds(misty.results, paste0(top.folder, "_ws.rds"), "gz")
+    misty.results <- collect_results(db.file)
+    write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
   }
   return(misty.results)
 }
 
 
-sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
+sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRUE) {
   # trimming matters
   sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
@@ -201,6 +197,8 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
       rename(x = xcenter, y = ycenter) %>%
       group_split()
   )
+  
+  if(!freq) return(sm.repr)
 
   repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -322,18 +320,19 @@ model_reliance <- function(freq.sm) {
 }
 
 
-describe_cluster <- function(sm.repr, cluster, folder.prefix) {
+describe_cluster <- function(sm.repr, cluster, db.file) {
   cname <- paste0("...", cluster)
   sm.repr.all <- reduce(sm.repr, rbind)
   left <- sm.repr.all %>%
     filter(if_any(!!cname)) %>%
     select(id, x, y)
 
-  all.folders <- list.files(folder.prefix, paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), full.names = TRUE) %>%
-    map(~ list.dirs(.)[-1]) %>%
-    unlist()
-
-  right <- tibble(sample = all.folders) %>%
+  dbcon <- dbConnect(RSQLite::SQLite(), db.file)
+  samples <- dbGetQuery(dbcon, "SELECT DISTINCT sample FROM contributions") %>% unlist()
+  matching <- grep(paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), samples, value = TRUE)
+  dbDisconnect(dbcon)
+  
+  right <- tibble(sample = matching) %>%
     mutate(
       id = str_extract(sample, "sample.*/") %>% str_remove("/") %>% str_remove("^sample"),
       box = str_extract(sample, "/[0-9].*$") %>% str_remove("/")
@@ -349,8 +348,9 @@ describe_cluster <- function(sm.repr, cluster, folder.prefix) {
       ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
     )
 
-  left %>%
+  pattern <- paste0("(", paste0(left %>%
     left_join(right, by = c("id", "x" = "xcenter", "y" = "ycenter")) %>%
-    pull(sample) %>%
-    collect_results()
+    pull(sample), collapse="|"), ")")
+  
+  collect_results(db.file, pattern)
 }
