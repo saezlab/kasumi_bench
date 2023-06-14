@@ -7,47 +7,112 @@ library(spatstat.geom)
 top.folder <- "DCISct"
 sm.results <- read_rds(paste0(top.folder, ".rds"), "gz")
 
-#' Calculate Interaction and Localization Scores
+#' Calculates the normalized fraction of a network formed by the largest 
+#' connected component (LCC) from a table of coordinates.
 #'
-#' This function calculates the proportion of windows in which an interaction is
-#' found and how clustered or spread these windows are, based on the average 
-#' nearest-neighbor distance between such windows.
+#' @param coordtable A data frame or tibble containing the coordinates of 
+#'                   points. The table must have columns named 'x1' and 'y1'.
+#' @param stride The maximum distance threshold for considering two points
+#'               as neighbors. Typically the stride used between windows.
 #'
-#' @param clean A data frame containing the clean interaction data, with one
-#' interaction per column.
-#' @param inter The name of the column representing the interaction values.
-#' @param windows.coord The coordinates and origin of each window.
-#' 
-#' @return A numeric vector containing the interaction and localization scores.
-#'   - The interaction score represents the fraction of windows having 
-#'   the interaction.
-#'   - The localization score represents the average nearest neighbor distance 
-#'   (nn-distance) for windows with interaction.
+#' @return A numeric value representing the normalized fraction of the largest 
+#'         connected component (LCC) in the network.
+#'
+#' @description
+#' This function calculates the normalized fraction of a network formed by the 
+#' largest connected component (LCC) from the given coordinate table. 
+#' It constructs a network of neighboring points based on a distance threshold 
+#' ('stride'). The largest connected component is then identified in the 
+#' network, and the size of the LCC is determined. The normalized fraction is 
+#' computed as the ratio of the number of points in the LCC to the total number
+#' of points in the coordinate table, resulting in a value between 0 and 1.
 #'
 #' @examples
-#' # Example usage:
-#' data <- read.csv("data.csv")
-#' scores <- get_nnd_score(data, "interactions")
-#' print(scores)
+#' # Create a coordinate table
+#' coords <- data.frame(x1 = c(1, 2, 3), y1 = c(1, 2, 3))
 #'
-get_nnd_score <- function(clean, inter, windows.coord) {
-  inter.distances <- clean %>% 
+#' # Calculate the normalized fraction of the largest connected component
+#' fraction <- lcc_density_from_coordinates(coords$x1, coords$x2 stride = 1.5)
+#'
+#' @export
+lcc_density_from_coordinates <- function(x, y, stride){
+  distmat <- dist(cbind(x,y))
+  
+  neighbors <- as.matrix(distmat) <= stride
+  diag(neighbors) <- FALSE # Self-edges
+  
+  # Note: we could avoid computing the full distance matrix and use a k-d tree
+  # to find neighbors but existing implementations have a lot of dependencies
+  
+  # Make network of neighboring tiles
+  ngraph <- graph.adjacency(neighbors, mode = "undirected")
+  lccsize <- max(clusters(ngraph)$csize)
+  
+  # We want a null score if no 2 tiles are connected
+  # and a perfect score if they're all connected
+  return((lccsize - 1)/ (length(ngraph) - 1))
+}
+
+#' Calculates the Largest Connected Component (LCC) score based for a given
+#' interaction, and given coordinates where it occurs.
+#'
+#' @param clean A data frame containing cleaned data.
+#' @param inter The column name for the interaction variable in the 'clean'
+#'              data frame.
+#' @param windows.coord A data frame containing coordinates for windows.
+#' @param stride The maximum distance threshold for considering two windows as 
+#'               neighbors (default = 100).
+#'
+#' @return A numeric vector with two elements:
+#'         - Fraction of windows with the interaction.
+#'         - Average Local Clustering Coefficient (LCC) density of windows
+#'           with the interaction.
+#'
+#' @description
+#' This function calculates the LCC score by combining the interaction data 
+#' and window coordinates. It first selects the relevant rows from 'clean' 
+#' based on the interaction variable. Then, it combines the selected rows with 
+#' the window coordinates using a left-join operation. Next, it calculates the
+#' LCC density for each group of windows based on coordinates, using the 
+#' specified 'stride' parameter. Finally, it returns a numeric vector with the 
+#' fraction of windows having the interaction and the average LCC density of
+#' those windows.
+#'
+#' @examples
+#' # Create a sample 'clean' data frame
+#' clean <- data.frame(
+#'   sampleID = c(1, 2, 2, 4, 5),
+#'   interaction = c(0, 1, 1, 0, 1)
+#' )
+#'
+#' # Create a sample 'windows.coord' data frame
+#' windows.coord <- data.frame(
+#'   sampleID = c(1, 2, 2, 4, 5),
+#'   x1 = c(10, 20, 30, 40, 50),
+#'   y1 = c(100, 200, 300, 400, 500)
+#' )
+#'
+#' # Calculate the LCC score
+#' score <- get_lcc_score(clean, "interaction", windows.coord, stride = 100)
+#'
+#' @export
+get_lcc_score <- function(clean, inter, windows.coord, stride = 100) {
+  inter.windows <- clean %>% 
     select(inter) %>% 
     cbind(windows.coord) %>% 
-    filter(!!as.symbol(inter) > 0) %>% 
-    group_by(sampleID) %>%
-    mutate(nnd = nndist(x1, y1))
+    filter(!!as.symbol(inter) > 0) 
   
-  # Skip infinite values (single window in FOV)
-  inter.distances <- inter.distances %>%
-    mutate(nnd = if_else(is.infinite(nnd), NA, nnd))
+  inter.clustering <- inter.windows %>% 
+    mutate(x1 = as.integer(x1), y1 = as.integer(y1)) %>%
+    group_by(sampleID) %>%
+    summarize(lcc = lcc_density_from_coordinates(x1, y1, stride))
   
   # Return fraction of windows having the interaction
-  # and localization score as average nn-distance
+  # and localization score as average LCC density
   res <- c(
-    nrow(inter.distances)/nrow(clean), 
-    mean(inter.distances$nnd, na.rm = TRUE)
-          )
+    nrow(inter.windows)/nrow(clean), 
+    mean(inter.clustering$lcc, na.rm = TRUE)
+  )
   return(res)
 }
 
@@ -85,7 +150,7 @@ leiden_onumap <- function(representation.umap, resolution = 0.5) {
     sim[knn, knn[1]] <- maxval - representation.umap$distances[r,]
   }
   # Remove self-edges
-  diag(sim) = 0
+  diag(sim) <- 0
   
   # Range matters for Leiden's resolution
   sim <- sim / max(sim)
@@ -129,10 +194,10 @@ sm_interactions <- function(misty.results, resolution,
   
   
   interaction.scores <- t(sapply(colnames(clean), 
-                                 function(inter) get_nnd_score(clean, 
+                                 function(inter) get_lcc_score(clean, 
                                                                inter, 
                                                                windows.coord)))
-  colnames(interaction.scores) <- c("Frequency", "NND")
+  colnames(interaction.scores) <- c("Frequency", "LCC")
   # Frequency could also be computed here as colSums(clean > 0) / nrow(clean)
   interactions.stats <- data.frame(Interaction = names(clean))
   
@@ -162,6 +227,6 @@ sm_interactions <- function(misty.results, resolution,
 interactions.stats <- sm_interactions(sm.results, 0.05, 
                             save_heatmap = "DCISct_interaction_embedding.html")
 gp <- ggplot(interactions.stats[interactions.stats$Frequency > 0.1, ],
-             aes(x = Frequency, y = NND, color = Cluster)) +
+             aes(x = Frequency, y = LCC, color = Cluster)) +
   geom_point()
 gp
