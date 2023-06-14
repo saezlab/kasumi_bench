@@ -3,6 +3,7 @@ library(Matrix)
 library(heatmaply)
 library(umap)
 library(spatstat.geom)
+library(ggreppel)
 
 top.folder <- "DCISct"
 sm.results <- read_rds(paste0(top.folder, ".rds"), "gz")
@@ -226,7 +227,12 @@ sm_interactions <- function(misty.results, resolution,
 
 interactions.stats <- sm_interactions(sm.results, 0.05, 
                             save_heatmap = "DCISct_interaction_embedding.html")
+interactions.stats <- interactions.stats %>% 
+  mutate(Interaction = if_else(Frequency > 0.3 | LCC > 0.65, Interaction, NA))
 gp <- ggplot(interactions.stats[interactions.stats$Frequency > 0.1, ],
              aes(x = Frequency, y = LCC, color = Cluster)) +
-  geom_point()
+  geom_point() +
+  geom_text_repel(aes(label = Interaction)) +
+  theme_light()
 gp
+ggsave("DCISct_interaction_frequency.pdf", gp)
