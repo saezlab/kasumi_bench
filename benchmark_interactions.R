@@ -3,7 +3,7 @@ library(Matrix)
 library(heatmaply)
 library(umap)
 library(spatstat.geom)
-library(ggreppel)
+library(ggrepel)
 
 top.folder <- "DCISct"
 sm.results <- read_rds(paste0(top.folder, ".rds"), "gz")
@@ -225,14 +225,78 @@ sm_interactions <- function(misty.results, resolution,
   return(interactions.stats)
 }
 
-interactions.stats <- sm_interactions(sm.results, 0.05, 
-                            save_heatmap = "DCISct_interaction_embedding.html")
+perm_lcc <- function(n, inter.density, clean, windows.coord, stride) {
+  # Pick n random windows
+  randind = sample(1:length(inter.density), n, prob = inter.density, replace = FALSE)
+  
+  perm.windows <- clean %>% 
+    cbind(windows.coord) %>% 
+    slice(randind)
+  
+  perm.clustering <- perm.windows %>% 
+    mutate(x1 = as.integer(x1), y1 = as.integer(y1)) %>%
+    group_by(sampleID) %>%
+    summarize(lcc = lcc_density_from_coordinates(x1, y1, stride)) 
+  
+  res <- c(
+    n/nrow(clean), 
+    mean(perm.clustering$lcc, na.rm = TRUE)
+  )
+  return(res)
+}
+
+sm_interactions_permutations <- function(misty.results, ns, resolution, 
+                                         cutoff = 0, trim = 1) {
+  # trimming matters
+  sig <- extract_signature(misty.results, type = "i", 
+                           intersect.targets = FALSE, trim = trim)
+  sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
+  sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
+  
+  keep <- which(sig %>% select(-sample, -contains("intra_")) %>% rowSums() != 0)
+  
+  # the filtering here also matters
+  clean <- sig %>%
+    select(-sample, -contains("_.novar")) %>%
+    slice(keep) %>%
+    select(where(~ sum(.) != 0))
+  
+  windows.coord <- sig %>%
+    select(sample) %>%
+    slice(keep) %>%
+    mutate(sampleID = sapply(sample, 
+                             function(x) nth(str_split(x, "/")[[1]], -2)),
+           coords = str_extract(sample, 
+                                "[\\d|\\.]*_[\\d|\\.]*_[\\d|\\.]*_[\\d|\\.]*$")
+    ) %>%
+    separate(coords, c("x1", "y1", "x2", "y2"), sep = "_")   
+  
+  # total interaction frequency per window
+  inter.density <- rowSums(clean > 0)
+  inter.density <- inter.density / sum(inter.density)
+  
+  all_perm_lcc <- sapply(ns, function(n) perm_lcc(n, inter.density, clean, 
+                                                  windows.coord, 100))
+  all_perm_lcc <- data.frame(t(all_perm_lcc))
+  colnames(all_perm_lcc) <- c("Frequency", "LCC")
+  return(all_perm_lcc)
+}
+
+interactions.stats <- sm_interactions(sm.results, 0.05)
 interactions.stats <- interactions.stats %>% 
   mutate(Interaction = if_else(Frequency > 0.3 | LCC > 0.65, Interaction, NA))
+
+# Takes a few minutes
+permutations.stats <- sm_interactions_permutations(sm.results, 3*80:800, 0.05)
+
 gp <- ggplot(interactions.stats[interactions.stats$Frequency > 0.1, ],
-             aes(x = Frequency, y = LCC, color = Cluster)) +
-  geom_point() +
+             aes(x = Frequency, y = LCC)) +
+  geom_point(aes(color = Cluster)) +
   geom_text_repel(aes(label = Interaction)) +
   theme_light()
-gp
-ggsave("DCISct_interaction_frequency.pdf", gp)
+
+gp2 <- gp +
+  geom_line(data = permutations.stats, color = "grey") + 
+  geom_smooth(data = permutations.stats, method=lm)
+
+ggsave("DCISct_interaction_frequency_with_expectation.pdf", gp2)
