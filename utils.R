@@ -156,15 +156,14 @@ misty_train <- function(all.cells, all.positions, l, db.file, family = "constant
   return(misty.results)
 }
 
-
-sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRUE) {
+sm_repr <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   # trimming matters
   sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
   sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
-
+  
   keep <- which(sig %>% select(-sample, -contains("intra_")) %>% rowSums() != 0)
-
+  
   samps <- sig %>%
     slice(keep) %>%
     select(sample) %>%
@@ -174,29 +173,38 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRU
     ) %>%
     rowwise(id) %>%
     summarize(rebox = box %>%
-      str_split("_", simplify = T) %>%
-      as.numeric() %>% list(), .groups = "drop") %>%
+                str_split("_", simplify = T) %>%
+                as.numeric() %>% list(), .groups = "drop") %>%
     rowwise(id) %>%
     summarize(
       xcenter = (rebox[3] + rebox[1]) / 2,
       ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
     )
-
+  
   # the filtering here also matters
   clean <- sig %>%
     select(-sample, -contains("_.novar")) %>%
     slice(keep) %>%
     select(where(~ sum(.) != 0))
-
-
+  
+  
   clusters <- leiden_onsim(clean, cuts, res)
-
+  
   suppressMessages(
     sm.repr <- map(clusters, ~ .x == seq(length(unique(clusters)))) %>% reduce(rbind) %>%
       as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>%
       rename(x = xcenter, y = ycenter) %>%
       group_split()
   )
+  
+  
+  return(sm.repr)
+}
+
+
+sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRUE) {
+  
+  sm.repr <- sm_repr(misty.results, cuts, res, cutoff, trim)
   
   if(!freq) return(sm.repr)
 
@@ -262,7 +270,7 @@ optimal_smclust <- function(misty.results, true.labels) {
 
       perf <- try(
         freq.sm %>%
-          add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
+          left_join(true.labels, by = "id") %>%
           drop_na() %>% select(-id) %>% classify()
       )
 
