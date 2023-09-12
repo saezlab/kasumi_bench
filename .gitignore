@@ -12,3 +12,5 @@ MIBI*
 .DS_Store
 .Rhistory
 *.xlsx
+*.key
+*.csv
