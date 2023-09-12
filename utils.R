@@ -24,6 +24,7 @@ freq_repr <- function(labels) {
 pa_repr <- function(labels, positions) {
   dist1 <- find_knn(positions, 1)$dist
   threshold <- 2 * sd(dist1) + mean(dist1)
+
   misty.views <- create_initial_view(labels) %>%
     add_juxtaview(positions, neighbor.thr = threshold)
   suppressMessages(
@@ -42,6 +43,59 @@ pa_repr <- function(labels, positions) {
     as.matrix() %>%
     as.numeric()
 }
+
+csea_repr <- function(labels, positions) {
+  dist1 <- find_knn(positions, 1)$dist
+  threshold <- 2 * sd(dist1) + mean(dist1)
+
+  message("\nPermuting")
+  suppressMessages({
+    misty.views <- create_initial_view(labels) %>%
+      add_juxtaview(positions, neighbor.thr = threshold)
+    
+    neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
+      mutate(id = apply(labels, 1, which)) %>%
+      add_row(id = seq_len(ncol(labels))) %>%
+      replace(is.na(.), 0) %>%
+      group_by(id) %>%
+      group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
+      ungroup() %>%
+      select(-id)
+
+
+    neighb.perm <- seq_len(100) %>% map_dfr(\(i){
+      with_seed(
+        i,
+        perm.pos <- positions %>% sample_frac()
+      )
+
+      misty.views <- create_initial_view(labels) %>%
+        add_juxtaview(perm.pos, neighbor.thr = threshold)
+
+      misty.views[[paste0("juxtaview.", threshold)]] %>%
+        mutate(id = apply(labels, 1, which)) %>%
+        add_row(id = seq_len(ncol(labels))) %>%
+        replace(is.na(.), 0) %>%
+        group_by(id) %>%
+        group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
+        ungroup()
+    })
+  })
+  
+  means <- neighb.perm %>% group_by(id) %>% 
+    group_modify(~ colMeans(.x) %>% as_tibble_row()) %>%
+    ungroup() %>% select(-id)
+  
+  sds <- neighb.perm %>% group_by(id) %>% 
+    group_modify(~ apply(.x, 2, sd) %>% as_tibble_row()) %>%
+    ungroup() %>% select(-id)
+  
+  # symmetric z-scores
+  z <- apply(((neighb - means) / sds),2,replace_na,0) 
+  z.serial <- ((z+t(z))/2)[upper.tri(z, diag=T)]
+  replace(z.serial, is.infinite(z.serial) | is.nan(z.serial), 0)
+}
+
 
 leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure = "cosine") {
   sim <- simil(representation, measure)
@@ -109,19 +163,19 @@ sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
   } else {
     outputs <- seq_along(all.cells) %>%
       walk(\(i){
-          misty.views <- create_initial_view(all.cells[[i]]) %>%
-            add_paraview(all.positions[[i]], l,
-              family = family, cached = TRUE,
-              prefix = ifelse(family == "constant", "p.", "")
-            )
-
-          folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
-            sample.id = paste0("sample", names(all.cells)[i]),
-            results.db = db.file,
-            bypass.intra = (family == "constant"),
-            cv.strict = (family != "constant"),
-            minu = minu
+        misty.views <- create_initial_view(all.cells[[i]]) %>%
+          add_paraview(all.positions[[i]], l,
+            family = family, cached = TRUE,
+            prefix = ifelse(family == "constant", "p.", "")
           )
+
+        folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
+          sample.id = paste0("sample", names(all.cells)[i]),
+          results.db = db.file,
+          bypass.intra = (family == "constant"),
+          cv.strict = (family != "constant"),
+          minu = minu
+        )
       })
 
     misty.results <- collect_results(db.file)
@@ -144,7 +198,7 @@ misty_train <- function(all.cells, all.positions, l, db.file, family = "constant
           select_markers("intraview", where(~ sd(.) != 0))
 
         run_misty(misty.views,
-          results.folder = paste0("sample", names(all.cells)[i]),
+          sample.id = paste0("sample", names(all.cells)[i]),
           results.db = db.file,
           bypass.intra = (family == "constant")
         )
@@ -161,9 +215,9 @@ sm_repr <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
   sig <- sig %>% mutate(across(!sample, ~ ifelse(.x <= cutoff, 0, .x)))
-  
+
   keep <- which(sig %>% select(-sample, -contains("intra_")) %>% rowSums() != 0)
-  
+
   samps <- sig %>%
     slice(keep) %>%
     select(sample) %>%
@@ -173,40 +227,41 @@ sm_repr <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
     ) %>%
     rowwise(id) %>%
     summarize(rebox = box %>%
-                str_split("_", simplify = T) %>%
-                as.numeric() %>% list(), .groups = "drop") %>%
+      str_split("_", simplify = T) %>%
+      as.numeric() %>% list(), .groups = "drop") %>%
     rowwise(id) %>%
     summarize(
       xcenter = (rebox[3] + rebox[1]) / 2,
       ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
     )
-  
+
   # the filtering here also matters
   clean <- sig %>%
     select(-sample, -contains("_.novar")) %>%
     slice(keep) %>%
     select(where(~ sum(.) != 0))
-  
-  
+
+
   clusters <- leiden_onsim(clean, cuts, res)
-  
+
   suppressMessages(
     sm.repr <- map(clusters, ~ .x == seq(length(unique(clusters)))) %>% reduce(rbind) %>%
       as_tibble(.name_repair = "unique") %>% cbind(samps) %>% group_by(id) %>%
       rename(x = xcenter, y = ycenter) %>%
       group_split()
   )
-  
-  
+
+
   return(sm.repr)
 }
 
 
 sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRUE) {
-  
   sm.repr <- sm_repr(misty.results, cuts, res, cutoff, trim)
-  
-  if(!freq) return(sm.repr)
+
+  if (!freq) {
+    return(sm.repr)
+  }
 
   repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
@@ -339,7 +394,7 @@ describe_cluster <- function(sm.repr, cluster, db.file) {
   samples <- dbGetQuery(dbcon, "SELECT DISTINCT sample FROM contributions") %>% unlist()
   matching <- grep(paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), samples, value = TRUE)
   dbDisconnect(dbcon)
-  
+
   right <- tibble(sample = matching) %>%
     mutate(
       id = str_extract(sample, "sample.*/") %>% str_remove("/") %>% str_remove("^sample"),
@@ -358,7 +413,7 @@ describe_cluster <- function(sm.repr, cluster, db.file) {
 
   pattern <- paste0("(", paste0(left %>%
     left_join(right, by = c("id", "x" = "xcenter", "y" = "ycenter")) %>%
-    pull(sample), collapse="|"), ")")
-  
+    pull(sample), collapse = "|"), ")")
+
   collect_results(db.file, pattern)
 }

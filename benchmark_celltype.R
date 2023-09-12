@@ -124,7 +124,20 @@ pa.dcis <- all.cells.dcis %>%
 
 roc.pa <- classify(pa.dcis)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
+csea.dcis <- all.cells.dcis %>%
+  map2(all.positions.dcis, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(PointNumber = points) %>%
+  left_join(resp %>% select(PointNumber, Status), by = "PointNumber") %>%
+  filter(PointNumber %in% repr.ids) %>%
+  select(-PointNumber) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target))
+
+roc.csea <- classify(csea.dcis)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/dcis.ct.rds")
 
 # CODEX ----
 
@@ -253,7 +266,20 @@ pa.lymph <- all.cells.lymph %>%
 
 roc.pa <- classify(pa.lymph)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
+csea.lymph <- all.cells.lymph %>%
+  map2(all.positions.lymph, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(Spots = spots) %>%
+  left_join(outcome, by = "Spots") %>%
+  filter(Spots %in% repr.ids) %>%
+  select(-Spots) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target)))
+
+roc.csea <- classify(csea.lymph)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/ctcl.ct.rds")
 
 # IMC ----
 
@@ -390,4 +416,17 @@ pa.bc <- all.cells.bc %>%
 
 roc.pa <- classify(pa.bc)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")
+csea.bc <- all.cells.bc %>%
+  map2(all.positions.bc, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(core = cores) %>%
+  filter(core %in% repr.ids) %>%
+  left_join(resp, by = "core") %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-core)
+
+roc.csea <- classify(csea.bc)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea=roc.csea), "rocs/bc.ct.rds")

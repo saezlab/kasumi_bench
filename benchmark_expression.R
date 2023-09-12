@@ -39,7 +39,7 @@ all.positions.dcis <- points %>% map(\(id){
 ## SM DCIS ----
 
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr.sqm", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr200.sqm", "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
@@ -100,9 +100,9 @@ all.positions.lymph <- spots %>% map(\(id){
 
 ## SM CTCL ----
 
-# 10 neighbors as in publication, 200px = 75um window
+# 10 neighbors as in publication, 400px = 150um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, "CTCLexpr.sqm", "gaussian")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 400, 20, "CTCLexpr400.sqm", "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -199,7 +199,7 @@ all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
 
 ## SM BC ----
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, "BCexpr.sqm", "gaussian")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 200, 20, "BCexpr200.sqm", "gaussian")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
