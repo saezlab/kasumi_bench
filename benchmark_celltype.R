@@ -39,9 +39,14 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 plan(multisession, workers = 9)
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, "DCISct.sqm")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, ws, 20, paste0("DCISct",ws,".sqm"))
 
 plan(multisession, workers = 9)
 
@@ -62,6 +67,17 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 roc.sm <- classify(freq.sm)
+
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.dcis.rds")
 
 ## WS DCIS ----
 
@@ -150,9 +166,14 @@ all.positions.lymph <- spots %>% map(\(id){
 
 ## SM CTCL ----
 
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 # 10 neighbors as in publication, 200px = 75um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, "CTCLct.sqm")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, ws, 20, paste0("CTCLct",ws,".sqm"))
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -172,6 +193,18 @@ freq.sm <- sm.repr %>%
   select(-id, -Patients)
 
 roc.sm <- classify(freq.sm)
+
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.ctcl.rds")
+
 
 ## WS CTCL ----
 
@@ -271,12 +304,18 @@ all.positions.bc <- cores %>% map(\(clus){
 
 ## SM BC ----
 
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, "BCct.sqm")
-
 resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
+
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
+plan(multisession, workers = 9)
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, ws, 20, paste0("BCct",ws,".sqm"))
+
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>%
@@ -294,6 +333,17 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 roc.sm <- classify(freq.sm)
+
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.bc.rds")
 
 ## WS BC ----
 
