@@ -12,6 +12,7 @@ library(ClusterR)
 library(withr)
 library(DBI)
 library(RSQLite)
+library(rlist)
 
 
 # these two functions for highest level first and second order representation per slide

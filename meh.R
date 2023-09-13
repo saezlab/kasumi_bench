@@ -7,22 +7,25 @@ ws <- read_rds("rocs/dcis.ws.rds")
 
 resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
 
-ggroc(ct, legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("MIBI DCIS") + theme_classic()
+  ggtitle("MIBI DCIS") + theme_light()
 
-ggsave("roc.mibi.pdf")
+ggsave("roc.mibi.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+      legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("MIBI DCIS") + theme_classic()
+  ggtitle("MIBI DCIS") + theme_light()
 
-ggsave("roc.misty.mibi.pdf")
+ggsave("roc.misty.mibi.pdf", width = 4, height = 3)
 
-misty.results <- read_rds("DCISct.rds")
-sm.repr <- sm_labels(misty.results, 0.3, 0.6)
+misty.results <- read_rds("DCISct200.rds")
+sm.repr <- sm_labels(misty.results, 0.8, 0.5)
 
 freq.sm <- sm.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
@@ -32,17 +35,12 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
-ggsave("dcis.ct.reliance.pdf")
+ggsave("DCISreliance.pdf", height = 5, width = 4)
 
-sm.repr.ext <- sm_labels(misty.results, 0.3, 0.6, freq=FALSE)
 
-misty.cluster <- describe_cluster(sm.repr.ext, 3, "DCISct.sqm")
-
-misty.cluster %>% plot_interaction_heatmap("para.10", trim = 1, clean = TRUE)
-
-misty.results <- read_rds("DCISexpr.rds")
-
-sm.repr <- sm_labels(misty.results, 0.3, 0.8)
+misty.results <- read_rds("DCISexpr200.rds")
+ 
+sm.repr <- sm_labels(misty.results, 0.6, 0.8)
 
 freq.sm <- sm.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
@@ -52,13 +50,7 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
-ggsave("dcis.expr.reliance.pdf")
-
-sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq=FALSE)
-
-misty.cluster <- describe_cluster(sm.repr.ext, 243, "DCISexpr.sqm")
-
-misty.cluster %>% plot_interaction_heatmap("para.100", trim = 1, cutoff = 1.2, clean = TRUE)
+ggsave("DCISreliance_expr.pdf", height = 5, width = 4)
 
 
 # CODEX ----
@@ -72,34 +64,92 @@ lymph <- read_csv("data/LymphomaCODEX/single_cells.csv")
 outcome <- lymph %>%
   filter(Groups %in% c(1, 2)) %>%
   group_by(Spots, Patients) %>%
-  summarize(Groups = Groups[1], .groups = "drop") %>%
-  mutate(Groups = ifelse(Groups == 1, "responder", "nonresponder"))
+  summarize(Groups = Groups[1], .groups = "drop")
 
-ggroc(ct, legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("CODEX CTCL") + theme_classic()
+  ggtitle("CODEX CTCL") + theme_light()
 
-ggsave("roc.codex.pdf")
+ggsave("roc.codex.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+      legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("CODEX CTCL") + theme_classic()
+  ggtitle("CODEX CTCL") + theme_light()
 
-ggsave("roc.misty.codex.pdf")
+ggsave("roc.misty.codex.pdf", width = 4, height = 3)
 
 
-misty.results <- read_rds("CTCLct.rds")
-sm.repr <- sm_labels(misty.results, 0.6, 0.6)
+misty.results <- read_rds("CTCLct400.rds")
+sm.repr <- sm_labels(misty.results, 0.4, 0.9)
 
 freq.sm <- sm.repr %>%
-  left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  left_join(outcome %>%
+              mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
   rename(target = Groups) %>%
-  mutate(target = as.factor(target)) %>%
+  mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
 model_reliance(freq.sm)
+
+ggsave("CTCLreliance.pdf", height = 6, width = 4)
+
+sm.repr.ext <- sm_labels(misty.results, 0.4, 0.9, freq = FALSE)
+
+misty.cluster.23 <- describe_cluster(sm.repr.ext, 23, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.23, trim = 1)
+ggsave("clusterfigs/ctcl23.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.23, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/ctcl23h.pdf", width = 4, height = 4)
+
+misty.cluster.16 <- describe_cluster(sm.repr.ext, 16, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.16, trim = 1)
+ggsave("clusterfigs/ctcl16.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.16, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/ctcl16h.pdf", width = 4, height = 4)
+
+misty.cluster.11 <- describe_cluster(sm.repr.ext, 11, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.11, trim = 2)
+ggsave("clusterfigs/ctcl11.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.11, "paraview.10", trim = 5, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/ctcl11h.pdf", width = 4, height = 5)
+
+misty.cluster.1 <- describe_cluster(sm.repr.ext, 1, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.1, trim = 1)
+ggsave("clusterfigs/ctcl1.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.11, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/ctcl1h.pdf", width = 4, height = 5)
+
+
+misty.cluster.4 <- describe_cluster(sm.repr.ext, 4, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.4, trim =1)
+ggsave("clusterfigs/ctcl4.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.4, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/ctcl4h.pdf", width = 4, height = 4)
+
+misty.cluster.13 <- describe_cluster(sm.repr.ext, 13, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.13, trim =1)
+ggsave("clusterfigs/ctcl13.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.13, "paraview.10", trim = 1, cutoff = 0.85, clean = TRUE)
+ggsave("clusterfigs/ctcl13h.pdf", width = 4, height = 4)
+
+misty.cluster.25 <- describe_cluster(sm.repr.ext, 25, "CTCLct400.sqm")
+
+plot_improvement_stats(misty.cluster.25, trim =1)
+ggsave("clusterfigs/ctcl25.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.25, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/ctcl25h.pdf", width = 4, height = 4)
+
 
 # IMC ----
 
@@ -124,23 +174,26 @@ resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
 
-ggroc(ct, legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("IMC BC") + theme_classic()
+  ggtitle("IMC BC") + theme_light()
 
-ggsave("roc.imc.pdf")
+ggsave("roc.imc.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), legacy.axes = TRUE) +
-  geom_abline(intercept = 0, slope = 1, color = "gray50", linetype = "dotted") +
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+      legacy.axes = TRUE, linewidth = pi/10) +
+  geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
+  scale_color_brewer(palette = "Set1") +
   labs(color = NULL) +
-  ggtitle("IMC BC") + theme_classic()
+  ggtitle("IMC BC") + theme_light()
 
-ggsave("roc.misty.imc.pdf")
+ggsave("roc.misty.imc.pdf", width = 4, height = 3)
 
-misty.results <- read_rds("BCct.rds")
+misty.results <- read_rds("BCct200.rds")
 
-sm.repr <- sm_labels(misty.results, 0.7, 0.5)
+sm.repr <- sm_labels(misty.results, 0.3, 0.8)
 
 freq.sm <- sm.repr %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -149,8 +202,56 @@ freq.sm <- sm.repr %>%
   select(-id)
 
 model_reliance(freq.sm)
+ggsave("BCreliance.pdf", height = 5, width = 4)
+
+misty.results <- read_rds("BCexpr200.rds")
+
+sm.repr <- sm_labels(misty.results, 0.3, 0.8)
+
+freq.sm <- sm.repr %>%
+  left_join(resp, by = c("id" = "core")) %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id)
+
+model_reliance(freq.sm)
+ggsave("BCreliance_expr.pdf", height = 5, width = 4)
+
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
+
+misty.cluster.5 <- describe_cluster(sm.repr.ext, 23, "BCexpr200.sqm")
+
+plot_improvement_stats(misty.cluster.5, trim = 1)
+ggsave("clusterfigs/bc5.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 1.5, clean = TRUE)
+ggsave("clusterfigs/bc5h_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.75, clean = TRUE)
+ggsave("clusterfigs/bc5h.pdf", width = 5, height = 5)
+
+
+misty.cluster.37 <- describe_cluster(sm.repr.ext, 37, "BCexpr200.sqm")
+
+plot_improvement_stats(misty.cluster.37, trim = 1)
+ggsave("clusterfigs/bc37.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.37, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/bc37h_intra.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.37, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc37h.pdf", width = 5, height = 4)
 
 # Sensitivity ----
+
+ws.dcis <- read_rds("rocs/wrocs.dcis.rds")
+ws.ctcl <- read_rds("rocs/wrocs.ctcl.rds")
+ws.bc <- read_rds("rocs/wrocs.bc.rds")
+
+ws <- tibble(Window = seq(100,500, by = 100), DCIS = ws.dcis, CTCL = ws.ctcl, BC = ws.bc) %>%
+  pivot_longer(-Window, names_to = "Data", values_to = "AUROC")
+
+ggplot(ws, aes(x = Window, y = AUROC, color = Data)) + geom_point() + geom_line() + 
+  scale_color_brewer(palette = "Set1") + ylim(c(0.5,1)) + theme_light()
+
+ggsave("ws.pdf", width = 4, height = 3)
+
 
 sens <- read_csv("sensitivity.csv")
 
@@ -167,3 +268,80 @@ ggplot(sens.long, aes(y = Resolution, x = Threshold, fill = AUC)) +
   theme_classic()
 
 ggsave("sensitivity.pdf")
+
+
+
+
+# Kasumi sees ----
+test <- lymph %>% filter(Spots %in% c(1,13)) %>% select(Spots,ClusterName,X,Y)
+ggplot(test, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=0.5) + facet_wrap(vars(Spots)) + 
+  scale_color_manual(values=as.vector(pals::glasbey(n=19))) + coord_equal() + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("ct_distro.pdf", width=8, height=6)
+
+misty.results <- read_rds("CTCLct400.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.4, res = 0.9)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+test <- rbind(sm.repr[[1]],sm.repr[[3]])
+clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster))
+
+ggplot(kasumirep, aes(x = x, y=y, color = cluster)) + geom_point(size = 2.5) + #geom_tile(height = 200, width = 200, alpha = 0.8) + 
+  scale_color_manual(values=as.vector(pals::glasbey(n=11))) + 
+  facet_wrap(vars(id)) + coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_tiles_dots.pdf", width = 8, height = 6)
+
+# kasumi.freqs <- c(3,13) %>% map_dfr(~
+# sm.repr[[.x]] %>% select(-c(id,x,y)) %>% apply(2,sum) %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
+#   mutate(name = str_remove_all(name, "\\.")) %>% filter(value != 0, name %in% persistent) %>% add_column(id = sm.repr[[.x]]$id[1])
+# )
+# 
+# ggplot(kasumi.freqs, aes(x = name, y = value, fill =id)) + 
+#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
+#   scale_fill_brewer(palette = "Set2") +
+#   theme_classic()
+# 
+# ct.freqs <- c(3,13) %>% map_dfr(~
+#                                       all.cells.lymph[[.x]] %>% colSums() %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
+#                                       add_column(id = as.character(.x))
+# )
+# 
+# ggplot(ct.freqs, aes(x = name, y = value, fill = id)) + 
+#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
+#   scale_fill_brewer(palette = "Set2") +
+#   theme_classic()
+# kasumi.freqs <- c(3,13) %>% map_dfr(~
+# sm.repr[[.x]] %>% select(-c(id,x,y)) %>% apply(2,sum) %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
+#   mutate(name = str_remove_all(name, "\\.")) %>% filter(value != 0, name %in% persistent) %>% add_column(id = sm.repr[[.x]]$id[1])
+# )
+# 
+# ggplot(kasumi.freqs, aes(x = name, y = value, fill =id)) + 
+#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
+#   scale_fill_brewer(palette = "Set2") +
+#   theme_classic()
+# 
+# ct.freqs <- c(3,13) %>% map_dfr(~
+#                                       all.cells.lymph[[.x]] %>% colSums() %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
+#                                       add_column(id = as.character(.x))
+# )
+# 
+# ggplot(ct.freqs, aes(x = name, y = value, fill = id)) + 
+#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
+#   scale_fill_brewer(palette = "Set2") +
+#   theme_classic()
+
+
