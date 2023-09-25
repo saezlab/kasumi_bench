@@ -26,21 +26,24 @@ pa_repr <- function(labels, positions) {
   dist1 <- find_knn(positions, 1)$dist
   threshold <- 2 * sd(dist1) + mean(dist1)
 
-  misty.views <- create_initial_view(labels) %>%
-    add_juxtaview(positions, neighbor.thr = threshold)
-  suppressMessages(
+  suppressMessages({
+    
+    misty.views <- create_initial_view(labels) %>%
+      add_juxtaview(positions, neighbor.thr = threshold)
+    
     neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
-      mutate(id = apply(labels, 1, which)) %>%
+      mutate(id = apply(labels, 1, which) %>% as.numeric()) %>%
       add_row(id = seq_len(ncol(labels))) %>%
       replace(is.na(.), 0) %>%
       group_by(id) %>%
       group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
       ungroup() %>%
       select(-id)
+  }
   )
 
   (neighb / colSums(labels)) %>%
-    replace(is.na(.), 0) %>%
+    replace(is.na(.) | . == Inf, 0) %>%
     as.matrix() %>%
     as.numeric()
 }
@@ -340,6 +343,7 @@ optimal_smclust <- function(misty.results, true.labels) {
 
 
 # Fisher, Rudin, Dominici, JMLR, 2019
+# signed Model Reliance
 model_reliance <- function(freq.sm) {
   model <- glm(target ~ ., freq.sm, family = "binomial")
 

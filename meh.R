@@ -125,8 +125,8 @@ misty.cluster.1 <- describe_cluster(sm.repr.ext, 1, "CTCLct400.sqm")
 
 plot_improvement_stats(misty.cluster.1, trim = 1)
 ggsave("clusterfigs/ctcl1.pdf", width = 4, height = 4)
-plot_interaction_heatmap(misty.cluster.11, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
-ggsave("clusterfigs/ctcl1h.pdf", width = 4, height = 5)
+plot_interaction_heatmap(misty.cluster.1, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/ctcl1h.pdf", width = 4, height = 4)
 
 
 misty.cluster.4 <- describe_cluster(sm.repr.ext, 4, "CTCLct400.sqm")
@@ -219,14 +219,14 @@ ggsave("BCreliance_expr.pdf", height = 5, width = 4)
 
 sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
 
-misty.cluster.5 <- describe_cluster(sm.repr.ext, 23, "BCexpr200.sqm")
+misty.cluster.5 <- describe_cluster(sm.repr.ext, 5, "BCexpr200.sqm")
 
 plot_improvement_stats(misty.cluster.5, trim = 1)
 ggsave("clusterfigs/bc5.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 1.5, clean = TRUE)
+plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 1, clean = TRUE)
 ggsave("clusterfigs/bc5h_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.75, clean = TRUE)
-ggsave("clusterfigs/bc5h.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc5h.pdf", width = 5, height = 4)
 
 
 misty.cluster.37 <- describe_cluster(sm.repr.ext, 37, "BCexpr200.sqm")

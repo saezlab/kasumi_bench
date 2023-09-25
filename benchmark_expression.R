@@ -38,8 +38,13 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+repr.ids <- roc.sm.dcis <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr200.sqm", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, ws, 20, paste0("DCISexpr",ws,".sqm"), "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
@@ -59,6 +64,15 @@ freq.sm <- sm.repr %>%
 
 
 roc.sm.dcis <- classify(freq.sm)
+
+if(roc.sm.dcis$auc > max.auc){
+  roc.sm.dcis <<- roc.sm.dcis
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm.dcis$auc
+}
+
+roc.sm.dcis$auc
+})
 
 write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
 
