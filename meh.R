@@ -4,6 +4,7 @@ source("utils.R")
 ct <- read_rds("rocs/dcis.ct.rds")
 expr <- read_rds("rocs/dcis.expr.rds")
 ws <- read_rds("rocs/dcis.ws.rds")
+expr.base  <- read_rds("rocs/dcis.expr.base.rds")
 
 resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
 
@@ -15,7 +16,7 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.mibi.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr,  base = expr.base), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -58,6 +59,7 @@ ggsave("DCISreliance_expr.pdf", height = 5, width = 4)
 ct <- read_rds("rocs/ctcl.ct.rds")
 expr <- read_rds("rocs/ctcl.expr.rds")
 ws <- read_rds("rocs/ctcl.ws.rds")
+expr.base  <- read_rds("rocs/ctcl.expr.base.rds")
 
 lymph <- read_csv("data/LymphomaCODEX/single_cells.csv")
 
@@ -74,7 +76,7 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.codex.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -156,6 +158,7 @@ ggsave("clusterfigs/ctcl25h.pdf", width = 4, height = 4)
 ct <- read_rds("rocs/bc.ct.rds")
 expr <- read_rds("rocs/bc.expr.rds")
 ws <- read_rds("rocs/bc.ws.rds")
+expr.base  <- read_rds("rocs/bc.expr.base.rds")
 
 bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
 with_seed(
@@ -182,7 +185,7 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.imc.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr), 
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
