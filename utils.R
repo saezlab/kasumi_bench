@@ -13,6 +13,7 @@ library(withr)
 library(DBI)
 library(RSQLite)
 library(rlist)
+library(cowplot)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -366,10 +367,11 @@ model_reliance <- function(freq.sm) {
     })
 
   mr <- sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
+  
+  toreturn <- tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
+    mutate(Cluster = str_remove_all(Cluster, "\\."))
 
-  ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
-    mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
-    mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
+  print(ggplot(toreturn %>% mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
     geom_segment(aes(x = Cluster, xend = Cluster, y = 0, yend = sMR)) +
     geom_point(aes(x = Cluster, y = sMR, color = sMR)) +
     scale_color_steps2(low = "darkgreen", mid = "white", high = "blue3") +
@@ -384,7 +386,10 @@ model_reliance <- function(freq.sm) {
       legend.position = "none",
       axis.line.y = element_blank(),
       axis.ticks.y = element_blank()
-    )
+    ) )
+  
+  return(toreturn)
+  
 }
 
 

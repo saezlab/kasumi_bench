@@ -35,8 +35,23 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-model_reliance(freq.sm)
+mr <- model_reliance(freq.sm)
+
 ggsave("DCISreliance.pdf", height = 5, width = 4)
+
+sm.repr.ext <- sm_labels(misty.results, 0.8, 0.5, freq = FALSE)
+
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISct200.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/DCISct200.pdf", width = 20, height = 20)
 
 
 misty.results <- read_rds("DCISexpr200.rds")
@@ -50,8 +65,31 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(target)) %>%
   select(-id)
 
-model_reliance(freq.sm)
+mr <- model_reliance(freq.sm)
 ggsave("DCISreliance_expr.pdf", height = 5, width = 4)
+
+sm.repr.ext <- sm_labels(misty.results, 0.6, 0.8, freq = FALSE)
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISexpr200.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.100", trim = 1, cutoff = 0.5, clean = TRUE)
+  last_plot()
+}) 
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/DCISexpr200.pdf", width = 10, height = 8)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISexpr200.sqm")
+  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 0.5, clean = TRUE)
+  last_plot()
+}) 
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/DCISexpr200.intra.pdf", width = 10, height = 8)
 
 
 # CODEX ----
@@ -96,11 +134,23 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
-model_reliance(freq.sm)
+mr <- model_reliance(freq.sm)
 
 ggsave("CTCLreliance.pdf", height = 6, width = 4)
 
 sm.repr.ext <- sm_labels(misty.results, 0.4, 0.9, freq = FALSE)
+
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLct400.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/CTCLct400.pdf", width = 16, height = 12)
 
 misty.cluster.23 <- describe_cluster(sm.repr.ext, 23, "CTCLct400.sqm")
 
@@ -151,6 +201,44 @@ plot_improvement_stats(misty.cluster.25, trim =1)
 ggsave("clusterfigs/ctcl25.pdf", width = 4, height = 4)
 plot_interaction_heatmap(misty.cluster.25, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
 ggsave("clusterfigs/ctcl25h.pdf", width = 4, height = 4)
+
+
+
+misty.results <- read_rds("CTCLexpr400.rds")
+sm.repr <- sm_labels(misty.results, 0.3, 0.5)
+
+freq.sm <- sm.repr %>%
+  left_join(outcome %>%
+              mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id, -Patients)
+
+mr <- model_reliance(freq.sm)
+
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.5, freq = FALSE)
+
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLexpr400.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.100", trim = 1, cutoff = 0.5, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/CTCLexpr400.pdf", width = 15, height = 8)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLexpr400.sqm")
+  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/CTCLexpr400.intra.pdf", width = 15, height = 8)
 
 
 # IMC ----
@@ -204,8 +292,24 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id)
 
-model_reliance(freq.sm)
+mr <- model_reliance(freq.sm)
 ggsave("BCreliance.pdf", height = 5, width = 4)
+
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
+
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCct200.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/BCct200.pdf", width = 12, height = 12)
+
+
 
 misty.results <- read_rds("BCexpr200.rds")
 
@@ -217,10 +321,34 @@ freq.sm <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id)
 
-model_reliance(freq.sm)
+mr <- model_reliance(freq.sm)
 ggsave("BCreliance_expr.pdf", height = 5, width = 4)
 
 sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
+
+mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCexpr200.sqm")
+  plot_interaction_heatmap(misty.cluster, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/BCexpr200.pdf", width = 20, height = 16)
+
+cl.list <- mr.clusters %>% map(\(cl){
+  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCexpr200.sqm")
+  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+  last_plot()
+})
+
+plot_grid(plotlist = cl.list, labels = mr.clusters)
+
+ggsave("clusterfigs/BCexpr200.intra.pdf", width = 20, height = 16)
+
+
 
 misty.cluster.5 <- describe_cluster(sm.repr.ext, 5, "BCexpr200.sqm")
 
