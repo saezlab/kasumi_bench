@@ -28,10 +28,9 @@ pa_repr <- function(labels, positions) {
   threshold <- 2 * sd(dist1) + mean(dist1)
 
   suppressMessages({
-    
     misty.views <- create_initial_view(labels) %>%
       add_juxtaview(positions, neighbor.thr = threshold)
-    
+
     neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
       mutate(id = apply(labels, 1, which) %>% as.numeric()) %>%
       add_row(id = seq_len(ncol(labels))) %>%
@@ -40,8 +39,7 @@ pa_repr <- function(labels, positions) {
       group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
       ungroup() %>%
       select(-id)
-  }
-  )
+  })
 
   (neighb / colSums(labels)) %>%
     replace(is.na(.) | . == Inf, 0) %>%
@@ -57,7 +55,7 @@ csea_repr <- function(labels, positions) {
   suppressMessages({
     misty.views <- create_initial_view(labels) %>%
       add_juxtaview(positions, neighbor.thr = threshold)
-    
+
     neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
       mutate(id = apply(labels, 1, which)) %>%
       add_row(id = seq_len(ncol(labels))) %>%
@@ -86,18 +84,22 @@ csea_repr <- function(labels, positions) {
         ungroup()
     })
   })
-  
-  means <- neighb.perm %>% group_by(id) %>% 
+
+  means <- neighb.perm %>%
+    group_by(id) %>%
     group_modify(~ colMeans(.x) %>% as_tibble_row()) %>%
-    ungroup() %>% select(-id)
-  
-  sds <- neighb.perm %>% group_by(id) %>% 
+    ungroup() %>%
+    select(-id)
+
+  sds <- neighb.perm %>%
+    group_by(id) %>%
     group_modify(~ apply(.x, 2, sd) %>% as_tibble_row()) %>%
-    ungroup() %>% select(-id)
-  
+    ungroup() %>%
+    select(-id)
+
   # symmetric z-scores
-  z <- apply(((neighb - means) / sds),2,replace_na,0) 
-  z.serial <- ((z+t(z))/2)[upper.tri(z, diag=T)]
+  z <- apply(((neighb - means) / sds), 2, replace_na, 0)
+  z.serial <- ((z + t(z)) / 2)[upper.tri(z, diag = T)]
   replace(z.serial, is.infinite(z.serial) | is.nan(z.serial), 0)
 }
 
@@ -367,7 +369,7 @@ model_reliance <- function(freq.sm) {
     })
 
   mr <- sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
-  
+
   toreturn <- tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
     mutate(Cluster = str_remove_all(Cluster, "\\."))
 
@@ -386,10 +388,9 @@ model_reliance <- function(freq.sm) {
       legend.position = "none",
       axis.line.y = element_blank(),
       axis.ticks.y = element_blank()
-    ) )
-  
+    ))
+
   return(toreturn)
-  
 }
 
 
