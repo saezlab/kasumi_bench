@@ -306,7 +306,7 @@ misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
 
 # the column target in the representation table is the ground truth
 # returns ROC based on 10-fold cv predictions
-classify <- function(representation) {
+classify <- function(representation, dir = "auto") {
   with_seed(
     1,
     suppressWarnings(
@@ -322,7 +322,7 @@ classify <- function(representation) {
     )
   )
 
-  roc(model$pred$obs, model$pred[, 3], quiet = TRUE)
+  roc(model$pred$obs, model$pred[, 3], direction = dir, quiet = TRUE)
 }
 
 optimal_smclust <- function(misty.results, true.labels) {
@@ -348,9 +348,12 @@ optimal_smclust <- function(misty.results, true.labels) {
 # Fisher, Rudin, Dominici, JMLR, 2019
 # signed Model Reliance
 model_reliance <- function(freq.sm) {
+  
   model <- glm(target ~ ., freq.sm, family = "binomial")
 
   eorig <- classify(freq.sm)
+  dir <- eorig$direction
+  dir.sign <- ifelse(dir == ">", -1, 1)
   cat(paste0("AUC: ", eorig$auc))
 
   with_seed(
@@ -365,10 +368,11 @@ model_reliance <- function(freq.sm) {
     colnames() %>%
     map_dbl(\(cname){
       classify(freq.sm %>% select(-nas) %>%
-        mutate(!!cname := freq.sm[splitr, cname] %>% unlist()))$auc
+        mutate(!!cname := freq.sm[splitr, cname] %>% unlist()), dir)$auc
     })
+  
 
-  mr <- sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
+  mr <- dir.sign * sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
 
   toreturn <- tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
     mutate(Cluster = str_remove_all(Cluster, "\\."))
@@ -380,8 +384,8 @@ model_reliance <- function(freq.sm) {
     geom_hline(yintercept = 0, color = "gray50") +
     geom_hline(yintercept = 1, color = "gray70", linetype = "dashed") +
     geom_hline(yintercept = -1, color = "gray70", linetype = "dashed") +
-    geom_label(label = paste("\u2190", ifelse(eorig$direction == ">", eorig$levels[2], eorig$levels[1])), x = length(mr), y = -1) +
-    geom_label(label = paste(ifelse(eorig$direction == ">", eorig$levels[1], eorig$levels[2]), "\u2192"), x = 1, y = 1) +
+    geom_label(label = paste("\u2190", eorig$levels[2]), x = length(mr), y = -1) +
+    geom_label(label = paste(eorig$levels[1], "\u2192"), x = 1, y = 1) +
     coord_flip() +
     theme_classic() +
     theme(
@@ -427,4 +431,95 @@ describe_cluster <- function(sm.repr, cluster, db.file) {
     pull(sample), collapse = "|"), ")")
 
   collect_results(db.file, pattern)
+}
+
+
+# prototype. matching ids fixed for dcis.
+wcounts <- function(all.expr, all.positions, window, overlap) {
+  all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
+    expr <- all.expr[[i]]
+    positions <- all.positions[[i]]
+
+    x <- tibble::tibble(
+      xl = seq(
+        min(positions[, 1]),
+        max(positions[, 1]),
+        window - window * overlap / 100
+      ),
+      xu = xl + window
+    ) %>%
+      dplyr::filter(xl < max(positions[, 1])) %>%
+      dplyr::mutate(xu = pmin(xu, max(positions[, 1]))) %>%
+      round(2)
+
+    y <- tibble::tibble(
+      yl = seq(
+        min(positions[, 2]),
+        max(positions[, 2]),
+        window - window * overlap / 100
+      ),
+      yu = yl + window
+    ) %>%
+      dplyr::filter(yl < max(positions[, 2])) %>%
+      dplyr::mutate(yu = pmin(yu, max(positions[, 2]))) %>%
+      round(2)
+
+    tiles <- tidyr::expand_grid(x, y)
+
+    tiles %>%
+      pmap_dfr(\(xl, xu, yl, yu){
+        selected.rows <- which(
+          positions[, 1] >= xl & positions[, 1] <= xu &
+            positions[, 2] >= yl & positions[, 2] <= yu
+        )
+
+        expr %>%
+          slice(selected.rows) %>%
+          colSums()
+      }) %>%
+      add_column(id = names(all.expr)[i])
+  })
+
+
+  seq(0.1, 0.9, 0.1) %>% walk(\(cuts){
+    seq(0.5, 0.9, 0.1) %>% walk(\(res){
+      clusters <- leiden_onsim(all.windows %>% select(-id), cuts, res)
+
+      wc.repr <- cbind(cluster = clusters, id = all.windows %>% pull(id)) %>%
+        as_tibble() %>%
+        group_by(id, cluster) %>%
+        tally() %>%
+        ungroup() %>%
+        pivot_wider(names_from = "cluster", values_from = "n") %>%
+        replace(is.na(.), 0) #%>% select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+      repr.ids <- wc.repr %>% pull(id)
+
+      # DCIS
+      # freq.wc <- wc.repr %>%
+      #   left_join(resp %>% select(PointNumber, Status) %>%
+      #     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+      #   rename(target = Status) %>%
+      #   mutate(target = as.factor(target)) %>%
+      #   select(-id)
+
+      # CTCL
+      # freq.wc <- wc.repr %>%
+      #   left_join(outcome %>%
+      #     mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+      #   rename(target = Groups) %>%
+      #   mutate(target = as.factor(make.names(target))) %>%
+      #   select(-id, -Patients)
+      
+      #BC
+      freq.wc <- wc.repr %>%
+        left_join(resp, by = c("id" = "core")) %>%
+        rename(target = response) %>%
+        mutate(target = as.factor(make.names(target))) %>%
+        select(-id)
+
+      roc.wc <- classify(freq.wc)
+      print(paste(cuts, res, roc.wc$auc))
+    })
+  })
 }
