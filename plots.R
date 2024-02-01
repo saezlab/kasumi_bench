@@ -419,6 +419,9 @@ ggsave("clusterfigs/bc16h.pdf", width = 5, height = 4)
 plot_interaction_heatmap(misty.cluster.16, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
 ggsave("clusterfigs/bc16c.pdf", width = 5, height = 4)
 
+
+
+
 # Sensitivity ----
 
 ws.dcis <- read_rds("rocs/wrocs.dcis.rds")
@@ -475,7 +478,7 @@ persistent <- sm.freq %>%
   colnames() %>% str_remove_all("\\.")
 
 
-test <- rbind(sm.repr[[2]], sm.repr[[3]])
+test <- rbind(sm.repr[[7]], sm.repr[28], sm.repr[[3]], sm.repr[29])
 clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
 
 kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster))
@@ -487,43 +490,28 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, wid
 
  ggsave("kasumi_sees_tiles.pdf", width = 8, height = 6)
 
-# kasumi.freqs <- c(3,13) %>% map_dfr(~
-# sm.repr[[.x]] %>% select(-c(id,x,y)) %>% apply(2,sum) %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
-#   mutate(name = str_remove_all(name, "\\.")) %>% filter(value != 0, name %in% persistent) %>% add_column(id = sm.repr[[.x]]$id[1])
-# )
-# 
-# ggplot(kasumi.freqs, aes(x = name, y = value, fill =id)) + 
-#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
-#   scale_fill_brewer(palette = "Set2") +
-#   theme_classic()
-# 
-# ct.freqs <- c(3,13) %>% map_dfr(~
-#                                       all.cells.lymph[[.x]] %>% colSums() %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
-#                                       add_column(id = as.character(.x))
-# )
-# 
-# ggplot(ct.freqs, aes(x = name, y = value, fill = id)) + 
-#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
-#   scale_fill_brewer(palette = "Set2") +
-#   theme_classic()
-# kasumi.freqs <- c(3,13) %>% map_dfr(~
-# sm.repr[[.x]] %>% select(-c(id,x,y)) %>% apply(2,sum) %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
-#   mutate(name = str_remove_all(name, "\\.")) %>% filter(value != 0, name %in% persistent) %>% add_column(id = sm.repr[[.x]]$id[1])
-# )
-# 
-# ggplot(kasumi.freqs, aes(x = name, y = value, fill =id)) + 
-#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
-#   scale_fill_brewer(palette = "Set2") +
-#   theme_classic()
-# 
-# ct.freqs <- c(3,13) %>% map_dfr(~
-#                                       all.cells.lymph[[.x]] %>% colSums() %>% t() %>% as_tibble() %>% pivot_longer(everything()) %>% 
-#                                       add_column(id = as.character(.x))
-# )
-# 
-# ggplot(ct.freqs, aes(x = name, y = value, fill = id)) + 
-#   geom_bar(stat="identity", position=position_dodge(1), width = 0.5) + 
-#   scale_fill_brewer(palette = "Set2") +
-#   theme_classic()
+ 
+ 
+misty.results <- read_rds("BCexpr200.rds")
+sm.repr <- sm_repr(misty.results, 0.3, 0.7)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+sm.freq <- sm_labels(misty.results, 0.3, 0.7)
+
+persistent <- sm.freq %>% select(-id) %>% colnames() %>% str_remove_all("\\.")
+
+test <- rbind(sm.repr[[12]], sm.repr[[28]], sm.repr[[21]], sm.repr[[24]])
+clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% 
+  filter(cluster %in% persistent) %>% 
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = c(repr.ids[12],repr.ids[28], repr.ids[21], repr.ids[24])))
+
+ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, width = 100, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=as.vector(pals::cols25(n=15))) + 
+  coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_tiles_expr.pdf", width = 8, height = 6)
+
 
 
