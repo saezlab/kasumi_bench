@@ -38,8 +38,13 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+repr.ids <- roc.sm.dcis <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, 200, 20, "DCISexpr", "gaussian")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, ws, 20, paste0("DCISexpr",ws,".sqm"), "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
@@ -60,11 +65,36 @@ freq.sm <- sm.repr %>%
 
 roc.sm.dcis <- classify(freq.sm)
 
+if(roc.sm.dcis$auc > max.auc){
+  roc.sm.dcis <<- roc.sm.dcis
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm.dcis$auc
+}
+
+roc.sm.dcis$auc
+})
+
 write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
 
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 100, "DCISexpr", "gaussian")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 100, "DCISexpr_ws.sqm", "gaussian")
+
+## Baseline ----
+
+freq.dcis <- all.cells.dcis %>%
+  map(freq_repr) %>%
+  list_transpose() %>%
+  as_tibble() %>%
+  mutate(PointNumber = points) %>%
+  left_join(resp %>% select(PointNumber, Status), by = "PointNumber") %>%
+  select(-PointNumber) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target))
+
+roc.fr <- classify(freq.dcis)
+
+write_rds(roc.fr, "rocs/dcis.expr.base.rds")
 
 # CODEX ----
 
@@ -100,9 +130,9 @@ all.positions.lymph <- spots %>% map(\(id){
 
 ## SM CTCL ----
 
-# 10 neighbors as in publication, 200px = 75um window
+# 10 neighbors as in publication, 400px = 150um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 200, 20, "CTCLexpr", "gaussian")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 400, 20, "CTCLexpr400.sqm", "gaussian")
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -124,7 +154,25 @@ write_rds(roc.sm.ctcl, "rocs/ctcl.expr.rds")
 
 ## WS CTCL ----
 
-misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 100, "CTCLexpr", "gaussian")
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 100, "CTCLexpr_ws.sqm", "gaussian")
+
+## Baseline ----
+
+freq.lymph <- all.cells.lymph %>%
+  map(freq_repr) %>%
+  list_transpose() %>%
+  as_tibble() %>%
+  mutate(Spots = spots) %>%
+  left_join(outcome, by = "Spots") %>%
+  select(-Spots) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target)))
+
+
+roc.fr <- classify(freq.lymph)
+
+write_rds(roc.fr, "rocs/ctcl.expr.base.rds")
+
 
 # IMC ----
 
@@ -199,7 +247,7 @@ all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
 
 ## SM BC ----
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 100, 20, "BCexpr", "gaussian")
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 200, 20, "BCexpr200.sqm", "gaussian")
 
 resp <- bmeta %>%
   filter(core %in% cores) %>%
@@ -222,4 +270,19 @@ roc.sm.bc <- classify(freq.sm)
 write_rds(roc.sm.bc, "rocs/bc.expr.rds")
 
 ## WS BC ----
-misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr", "gaussian")
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 50, "BCexpr_ws.sqm", "gaussian")
+
+## Baseline ----
+
+freq.bc <- all.cells.bc %>%
+  map(freq_repr) %>%
+  list_transpose() %>%
+  as_tibble() %>%
+  mutate(core = cores) %>%
+  left_join(resp, by = "core") %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-core)
+
+roc.fr <- classify(freq.bc)
+write_rds(roc.fr, "rocs/bc.expr.base.rds")

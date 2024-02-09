@@ -39,9 +39,14 @@ all.positions.dcis <- points %>% map(\(id){
 
 ## SM DCIS ----
 
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 plan(multisession, workers = 9)
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, 200, 20, "DCISct")
+misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, ws, 20, paste0("DCISct",ws,".sqm"))
 
 plan(multisession, workers = 9)
 
@@ -63,13 +68,24 @@ freq.sm <- sm.repr %>%
 
 roc.sm <- classify(freq.sm)
 
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.dcis.rds")
+
 ## WS DCIS ----
 
-misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct")
+misty.results <- misty_train(all.cells.dcis, all.positions.dcis, 10, "DCISct_ws.sqm")
 
 ## Alternatives DCIS ----
 
-cn.results <- cn_train(all.cells.dcis, all.positions.dcis)
+cn.results <- cn_train(all.cells.dcis, all.positions.dcis, 10)
 cn.repr <- cn_labels(cn.results, k = 17)
 
 freq.cn <- cn.repr %>%
@@ -108,7 +124,20 @@ pa.dcis <- all.cells.dcis %>%
 
 roc.pa <- classify(pa.dcis)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/dcis.ct.rds")
+csea.dcis <- all.cells.dcis %>%
+  map2(all.positions.dcis, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(PointNumber = points) %>%
+  left_join(resp %>% select(PointNumber, Status), by = "PointNumber") %>%
+  filter(PointNumber %in% repr.ids) %>%
+  select(-PointNumber) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target))
+
+roc.csea <- classify(csea.dcis)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/dcis.ct.rds")
 
 # CODEX ----
 
@@ -150,9 +179,14 @@ all.positions.lymph <- spots %>% map(\(id){
 
 ## SM CTCL ----
 
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
 # 10 neighbors as in publication, 200px = 75um window
 plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 200, 20, "CTCLct")
+misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, ws, 20, paste0("CTCLct",ws,".sqm"))
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
@@ -173,13 +207,25 @@ freq.sm <- sm.repr %>%
 
 roc.sm <- classify(freq.sm)
 
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.ctcl.rds")
+
+
 ## WS CTCL ----
 
-misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct")
+misty.results <- misty_train(all.cells.lymph, all.positions.lymph, 10, "CTCLct_ws.sqm")
 
 ## Alternatives CTCL ----
 
-cn.results <- cn_train(all.cells.lymph, all.positions.lymph)
+cn.results <- cn_train(all.cells.lymph, all.positions.lymph, 10)
 cn.repr <- cn_labels(cn.results, k = 10)
 
 freq.cn <- cn.repr %>%
@@ -220,7 +266,20 @@ pa.lymph <- all.cells.lymph %>%
 
 roc.pa <- classify(pa.lymph)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/ctcl.ct.rds")
+csea.lymph <- all.cells.lymph %>%
+  map2(all.positions.lymph, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(Spots = spots) %>%
+  left_join(outcome, by = "Spots") %>%
+  filter(Spots %in% repr.ids) %>%
+  select(-Spots) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target)))
+
+roc.csea <- classify(csea.lymph)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/ctcl.ct.rds")
 
 # IMC ----
 
@@ -271,12 +330,18 @@ all.positions.bc <- cores %>% map(\(clus){
 
 ## SM BC ----
 
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, 100, 20, "BCct")
-
 resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
+
+repr.ids <- roc.sm <- NULL
+max.auc <- 0
+
+rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+
+plan(multisession, workers = 9)
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, ws, 20, paste0("BCct",ws,".sqm"))
+
 
 plan(multisession, workers = 9)
 param.opt <- optimal_smclust(misty.results, resp %>%
@@ -295,14 +360,25 @@ freq.sm <- sm.repr %>%
 
 roc.sm <- classify(freq.sm)
 
+if(roc.sm$auc > max.auc){
+  roc.sm <<- roc.sm
+  repr.ids <<- repr.ids
+  max.auc <<- roc.sm$auc
+}
+
+roc.sm$auc
+})
+
+write_rds(rocs, "rocs/wrocs.bc.rds")
+
 ## WS BC ----
 
-misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct")
+misty.results <- misty_train(all.cells.bc, all.positions.bc, 10, "BCct_ws.sqm")
 
 
 ## Alternatives BC ----
 
-cn.results <- cn_train(all.cells.bc, all.positions.bc)
+cn.results <- cn_train(all.cells.bc, all.positions.bc, 10)
 cn.repr <- cn_labels(cn.results, k = 6)
 
 freq.cn <- cn.repr %>%
@@ -340,4 +416,17 @@ pa.bc <- all.cells.bc %>%
 
 roc.pa <- classify(pa.bc)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa), "rocs/bc.ct.rds")
+csea.bc <- all.cells.bc %>%
+  map2(all.positions.bc, csea_repr) %>%
+  list_transpose() %>%
+  as_tibble(.name_repair = "unique") %>%
+  mutate(core = cores) %>%
+  filter(core %in% repr.ids) %>%
+  left_join(resp, by = "core") %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-core)
+
+roc.csea <- classify(csea.bc)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea=roc.csea), "rocs/bc.ct.rds")

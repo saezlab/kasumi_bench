@@ -1,4 +1,4 @@
-library(mistyR) # requires >= 1.99.2
+library(mistyR) # requires >= 1.99.4
 library(future)
 library(tidyverse)
 library(furrr)
@@ -10,6 +10,10 @@ library(caret)
 library(pROC)
 library(ClusterR)
 library(withr)
+library(DBI)
+library(RSQLite)
+library(rlist)
+library(cowplot)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -22,10 +26,37 @@ freq_repr <- function(labels) {
 pa_repr <- function(labels, positions) {
   dist1 <- find_knn(positions, 1)$dist
   threshold <- 2 * sd(dist1) + mean(dist1)
-  misty.views <- create_initial_view(labels) %>%
-    add_juxtaview(positions, neighbor.thr = threshold)
-  suppressMessages(
-    neighb <- misty.views[[paste0("juxtaview.", threshold)]]$data %>%
+
+  suppressMessages({
+    misty.views <- create_initial_view(labels) %>%
+      add_juxtaview(positions, neighbor.thr = threshold)
+
+    neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
+      mutate(id = apply(labels, 1, which) %>% as.numeric()) %>%
+      add_row(id = seq_len(ncol(labels))) %>%
+      replace(is.na(.), 0) %>%
+      group_by(id) %>%
+      group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
+      ungroup() %>%
+      select(-id)
+  })
+
+  (neighb / colSums(labels)) %>%
+    replace(is.na(.) | . == Inf, 0) %>%
+    as.matrix() %>%
+    as.numeric()
+}
+
+csea_repr <- function(labels, positions) {
+  dist1 <- find_knn(positions, 1)$dist
+  threshold <- 2 * sd(dist1) + mean(dist1)
+
+  message("\nPermuting")
+  suppressMessages({
+    misty.views <- create_initial_view(labels) %>%
+      add_juxtaview(positions, neighbor.thr = threshold)
+
+    neighb <- misty.views[[paste0("juxtaview.", threshold)]] %>%
       mutate(id = apply(labels, 1, which)) %>%
       add_row(id = seq_len(ncol(labels))) %>%
       replace(is.na(.), 0) %>%
@@ -33,13 +64,45 @@ pa_repr <- function(labels, positions) {
       group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
       ungroup() %>%
       select(-id)
-  )
 
-  (neighb / colSums(labels)) %>%
-    replace(is.na(.), 0) %>%
-    as.matrix() %>%
-    as.numeric()
+
+    neighb.perm <- seq_len(100) %>% map_dfr(\(i){
+      with_seed(
+        i,
+        perm.pos <- positions %>% sample_frac()
+      )
+
+      misty.views <- create_initial_view(labels) %>%
+        add_juxtaview(perm.pos, neighbor.thr = threshold)
+
+      misty.views[[paste0("juxtaview.", threshold)]] %>%
+        mutate(id = apply(labels, 1, which)) %>%
+        add_row(id = seq_len(ncol(labels))) %>%
+        replace(is.na(.), 0) %>%
+        group_by(id) %>%
+        group_modify(~ colSums(.x) %>% as_tibble_row()) %>%
+        ungroup()
+    })
+  })
+
+  means <- neighb.perm %>%
+    group_by(id) %>%
+    group_modify(~ colMeans(.x) %>% as_tibble_row()) %>%
+    ungroup() %>%
+    select(-id)
+
+  sds <- neighb.perm %>%
+    group_by(id) %>%
+    group_modify(~ apply(.x, 2, sd) %>% as_tibble_row()) %>%
+    ungroup() %>%
+    select(-id)
+
+  # symmetric z-scores
+  z <- apply(((neighb - means) / sds), 2, replace_na, 0)
+  z.serial <- ((z + t(z)) / 2)[upper.tri(z, diag = T)]
+  replace(z.serial, is.infinite(z.serial) | is.nan(z.serial), 0)
 }
+
 
 leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure = "cosine") {
   sim <- simil(representation, measure)
@@ -63,11 +126,11 @@ kmeans_ondist <- function(representation, k = 10) {
   return(clust$clusters)
 }
 
-cn_train <- function(all.cells, all.positions) {
+cn_train <- function(all.cells, all.positions, k) {
   concat <- seq_along(all.cells) %>% map_dfr(\(i){
     misty.views <- create_initial_view(all.cells[[i]]) %>%
-      add_paraview(all.positions[[i]], 10, family = "constant", cache = TRUE)
-    misty.views[["paraview.10"]]$data %>%
+      add_paraview(all.positions[[i]], k, family = "constant", cache = TRUE)
+    misty.views[[paste0("paraview.", k)]] %>%
       add_column(id = names(all.cells)[i]) %>%
       cbind(all.positions[[i]])
   })
@@ -100,46 +163,40 @@ cn_labels <- function(neighborhoods, k) {
 }
 
 
-sm_train <- function(all.cells, all.positions, l, window, minu, top.folder,
+sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
                      family = "constant") {
-  if (file.exists(paste0(top.folder, ".rds"))) {
-    misty.results <- read_rds(paste0(top.folder, ".rds"))
+  if (file.exists(paste0(str_remove(db.file, ".sqm"), ".rds"))) {
+    misty.results <- read_rds(paste0(str_remove(db.file, ".sqm"), ".rds"))
   } else {
     outputs <- seq_along(all.cells) %>%
-      map(\(i){
-        if (dir.exists(paste0(top.folder, "/sample", names(all.cells)[i], "/"))) {
-          folders <- list.dirs(paste0(top.folder, "/sample", names(all.cells)[i], "/"))[-1]
-        } else {
-          misty.views <- create_initial_view(all.cells[[i]]) %>%
-            add_paraview(all.positions[[i]], l,
-              family = family, cached = TRUE,
-              prefix = ifelse(family == "constant", "p.", "")
-            )
-
-          folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
-            minu = minu,
-            results.folder = paste0(top.folder, "/sample", names(all.cells)[i], "/"),
-            bypass.intra = (family == "constant"),
-            cv.strict = (family != "constant")
+      walk(\(i){
+        misty.views <- create_initial_view(all.cells[[i]]) %>%
+          add_paraview(all.positions[[i]], l,
+            family = family, cached = TRUE,
+            prefix = ifelse(family == "constant", "p.", "")
           )
-        }
 
-        ifelse(length(folders) >= 10, return(folders), return(NA))
-      }) %>%
-      unlist()
+        folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
+          sample.id = paste0("sample", names(all.cells)[i]),
+          results.db = db.file,
+          bypass.intra = (family == "constant"),
+          cv.strict = (family != "constant"),
+          minu = minu
+        )
+      })
 
-    misty.results <- collect_results(outputs[!is.na(outputs)])
-    write_rds(misty.results, paste0(top.folder, ".rds"), "gz")
+    misty.results <- collect_results(db.file)
+    write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
   }
   return(misty.results)
 }
 
-misty_train <- function(all.cells, all.positions, l, top.folder, family = "constant") {
-  if (file.exists(paste0(top.folder, "_ws.rds"))) {
-    misty.results <- read_rds(paste0(top.folder, "_ws.rds"))
+misty_train <- function(all.cells, all.positions, l, db.file, family = "constant") {
+  if (file.exists(paste0(str_remove(db.file, ".sqm"), ".rds"))) {
+    misty.results <- read_rds(paste0(str_remove(db.file, ".sqm"), ".rds"))
   } else {
     outputs <- seq_along(all.cells) %>%
-      map(\(i){
+      walk(\(i){
         misty.views <- create_initial_view(all.cells[[i]]) %>%
           add_paraview(all.positions[[i]], l,
             family = family, cached = TRUE,
@@ -148,20 +205,19 @@ misty_train <- function(all.cells, all.positions, l, top.folder, family = "const
           select_markers("intraview", where(~ sd(.) != 0))
 
         run_misty(misty.views,
-          results.folder = paste0(top.folder, "_ws/sample", names(all.cells)[i], "/"),
+          sample.id = paste0("sample", names(all.cells)[i]),
+          results.db = db.file,
           bypass.intra = (family == "constant")
         )
-      }) %>%
-      unlist()
+      })
 
-    misty.results <- collect_results(outputs)
-    write_rds(misty.results, paste0(top.folder, "_ws.rds"), "gz")
+    misty.results <- collect_results(db.file)
+    write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
   }
   return(misty.results)
 }
 
-
-sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
+sm_repr <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
   # trimming matters
   sig <- extract_signature(misty.results, type = "i", intersect.targets = FALSE, trim = trim)
   sig[is.na(sig)] <- floor(min(sig %>% select(-sample), na.rm = TRUE))
@@ -202,6 +258,18 @@ sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1) {
       group_split()
   )
 
+
+  return(sm.repr)
+}
+
+
+sm_labels <- function(misty.results, cuts, res, cutoff = 0, trim = 1, freq = TRUE) {
+  sm.repr <- sm_repr(misty.results, cuts, res, cutoff, trim)
+
+  if (!freq) {
+    return(sm.repr)
+  }
+
   repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
 
   # technically we can also use pa_repr instead of freq_repr or combine both
@@ -238,7 +306,7 @@ misty_labels <- function(misty.results, cutoff = 0, trim = 1) {
 
 # the column target in the representation table is the ground truth
 # returns ROC based on 10-fold cv predictions
-classify <- function(representation) {
+classify <- function(representation, dir = "auto") {
   with_seed(
     1,
     suppressWarnings(
@@ -254,7 +322,7 @@ classify <- function(representation) {
     )
   )
 
-  roc(model$pred$obs, model$pred[, 3], quiet = TRUE)
+  roc(model$pred$obs, model$pred[, 3], direction = dir, quiet = TRUE)
 }
 
 optimal_smclust <- function(misty.results, true.labels) {
@@ -264,7 +332,7 @@ optimal_smclust <- function(misty.results, true.labels) {
 
       perf <- try(
         freq.sm %>%
-          add_column(id = repr.ids) %>% left_join(true.labels, by = "id") %>%
+          left_join(true.labels, by = "id") %>%
           drop_na() %>% select(-id) %>% classify()
       )
 
@@ -278,10 +346,14 @@ optimal_smclust <- function(misty.results, true.labels) {
 
 
 # Fisher, Rudin, Dominici, JMLR, 2019
+# signed Model Reliance
 model_reliance <- function(freq.sm) {
+  
   model <- glm(target ~ ., freq.sm, family = "binomial")
 
   eorig <- classify(freq.sm)
+  dir <- eorig$direction
+  dir.sign <- ifelse(dir == ">", -1, 1)
   cat(paste0("AUC: ", eorig$auc))
 
   with_seed(
@@ -296,44 +368,49 @@ model_reliance <- function(freq.sm) {
     colnames() %>%
     map_dbl(\(cname){
       classify(freq.sm %>% select(-nas) %>%
-        mutate(!!cname := freq.sm[splitr, cname] %>% unlist()))$auc
+        mutate(!!cname := freq.sm[splitr, cname] %>% unlist()), dir)$auc
     })
+  
 
-  mr <- sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
+  mr <- dir.sign * sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
 
-  ggplot(tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
-    mutate(Cluster = str_remove_all(Cluster, "\\.")) %>%
-    mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
+  toreturn <- tibble(Cluster = as.factor(names(mr)), sMR = mr) %>%
+    mutate(Cluster = str_remove_all(Cluster, "\\."))
+
+  print(ggplot(toreturn %>% mutate(Cluster = fct_reorder(Cluster, sMR)), aes(x = Cluster, y = sMR)) +
     geom_segment(aes(x = Cluster, xend = Cluster, y = 0, yend = sMR)) +
     geom_point(aes(x = Cluster, y = sMR, color = sMR)) +
     scale_color_steps2(low = "darkgreen", mid = "white", high = "blue3") +
     geom_hline(yintercept = 0, color = "gray50") +
     geom_hline(yintercept = 1, color = "gray70", linetype = "dashed") +
     geom_hline(yintercept = -1, color = "gray70", linetype = "dashed") +
-    geom_label(label = paste("\u2190", ifelse(eorig$direction == ">", eorig$levels[2], eorig$levels[1])), x = length(mr), y = -1) +
-    geom_label(label = paste(ifelse(eorig$direction == ">", eorig$levels[1], eorig$levels[2]), "\u2192"), x = 1, y = 1) +
+    geom_label(label = paste("\u2190", eorig$levels[2]), x = length(mr), y = -1) +
+    geom_label(label = paste(eorig$levels[1], "\u2192"), x = 1, y = 1) +
     coord_flip() +
     theme_classic() +
     theme(
       legend.position = "none",
       axis.line.y = element_blank(),
       axis.ticks.y = element_blank()
-    )
+    ))
+
+  return(toreturn)
 }
 
 
-describe_cluster <- function(sm.repr, cluster, folder.prefix) {
+describe_cluster <- function(sm.repr, cluster, db.file) {
   cname <- paste0("...", cluster)
   sm.repr.all <- reduce(sm.repr, rbind)
   left <- sm.repr.all %>%
     filter(if_any(!!cname)) %>%
     select(id, x, y)
 
-  all.folders <- list.files(folder.prefix, paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), full.names = TRUE) %>%
-    map(~ list.dirs(.)[-1]) %>%
-    unlist()
+  dbcon <- dbConnect(RSQLite::SQLite(), db.file)
+  samples <- dbGetQuery(dbcon, "SELECT DISTINCT sample FROM contributions") %>% unlist()
+  matching <- grep(paste0("sample(", paste0(unique(left$id), collapse = "|"), ")"), samples, value = TRUE)
+  dbDisconnect(dbcon)
 
-  right <- tibble(sample = all.folders) %>%
+  right <- tibble(sample = matching) %>%
     mutate(
       id = str_extract(sample, "sample.*/") %>% str_remove("/") %>% str_remove("^sample"),
       box = str_extract(sample, "/[0-9].*$") %>% str_remove("/")
@@ -349,8 +426,100 @@ describe_cluster <- function(sm.repr, cluster, folder.prefix) {
       ycenter = (rebox[4] + rebox[2]) / 2, .groups = "drop"
     )
 
-  left %>%
+  pattern <- paste0("(", paste0(left %>%
     left_join(right, by = c("id", "x" = "xcenter", "y" = "ycenter")) %>%
-    pull(sample) %>%
-    collect_results()
+    pull(sample), collapse = "|"), ")")
+
+  collect_results(db.file, pattern)
+}
+
+
+# prototype. matching ids fixed for dcis.
+wcounts <- function(all.expr, all.positions, window, overlap) {
+  all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
+    expr <- all.expr[[i]]
+    positions <- all.positions[[i]]
+
+    x <- tibble::tibble(
+      xl = seq(
+        min(positions[, 1]),
+        max(positions[, 1]),
+        window - window * overlap / 100
+      ),
+      xu = xl + window
+    ) %>%
+      dplyr::filter(xl < max(positions[, 1])) %>%
+      dplyr::mutate(xu = pmin(xu, max(positions[, 1]))) %>%
+      round(2)
+
+    y <- tibble::tibble(
+      yl = seq(
+        min(positions[, 2]),
+        max(positions[, 2]),
+        window - window * overlap / 100
+      ),
+      yu = yl + window
+    ) %>%
+      dplyr::filter(yl < max(positions[, 2])) %>%
+      dplyr::mutate(yu = pmin(yu, max(positions[, 2]))) %>%
+      round(2)
+
+    tiles <- tidyr::expand_grid(x, y)
+
+    tiles %>%
+      pmap_dfr(\(xl, xu, yl, yu){
+        selected.rows <- which(
+          positions[, 1] >= xl & positions[, 1] <= xu &
+            positions[, 2] >= yl & positions[, 2] <= yu
+        )
+
+        expr %>%
+          slice(selected.rows) %>%
+          colSums()
+      }) %>%
+      add_column(id = names(all.expr)[i])
+  })
+
+
+  seq(0.1, 0.9, 0.1) %>% walk(\(cuts){
+    seq(0.5, 0.9, 0.1) %>% walk(\(res){
+      clusters <- leiden_onsim(all.windows %>% select(-id), cuts, res)
+
+      wc.repr <- cbind(cluster = clusters, id = all.windows %>% pull(id)) %>%
+        as_tibble() %>%
+        group_by(id, cluster) %>%
+        tally() %>%
+        ungroup() %>%
+        pivot_wider(names_from = "cluster", values_from = "n") %>%
+        replace(is.na(.), 0) #%>% select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+      repr.ids <- wc.repr %>% pull(id)
+
+      # DCIS
+      # freq.wc <- wc.repr %>%
+      #   left_join(resp %>% select(PointNumber, Status) %>%
+      #     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+      #   rename(target = Status) %>%
+      #   mutate(target = as.factor(target)) %>%
+      #   select(-id)
+
+      # CTCL
+      # freq.wc <- wc.repr %>%
+      #   left_join(outcome %>%
+      #     mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+      #   rename(target = Groups) %>%
+      #   mutate(target = as.factor(make.names(target))) %>%
+      #   select(-id, -Patients)
+      
+      #BC
+      freq.wc <- wc.repr %>%
+        left_join(resp, by = c("id" = "core")) %>%
+        rename(target = response) %>%
+        mutate(target = as.factor(make.names(target))) %>%
+        select(-id)
+
+      roc.wc <- classify(freq.wc)
+      print(paste(cuts, res, roc.wc$auc))
+    })
+  })
 }
