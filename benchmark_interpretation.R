@@ -92,7 +92,7 @@ freq.expr <- sm.repr %>%
   select(-id, -Patients)
 
 reliance <- model_reliance(freq.expr)
-ggsave("mr_docker.pdf", last_plot())
+ggsave("CTCLreliance_interpretation.pdf", last_plot())
 
 cluster_stats$names <- str_remove(string = cluster_stats$names, pattern = "...")
 cluster_stats <- cluster_stats %>%
@@ -203,7 +203,7 @@ freq_all_clusters <- sapply(sm.repr.ext,
            colSums)
 
 reliance <- model_reliance(freq.sm)
-ggsave("mr_docker2.pdf", last_plot())
+ggsave("BCreliance_interpretation.pdf", last_plot())
 
 # Compile cluster stats
 
@@ -268,7 +268,7 @@ ggsave("BCexpr200_cluster_frequency.png", gp)
 # (Non-randomly spread across samples and useful for classification)
 contig_scores <- cluster_stats$label %>%
     na.omit %>%
-    sapply(function(x) na.omit(moran_score(sm.repr.ext, paste0("...", x), stride = 100, pval = TRUE)), simplify = FALSE) 
+    sapply(function(x) na.omit(moran_score(sm.repr.ext, paste0("...", x), stride = 150, pval = TRUE)), simplify = FALSE) 
 
 contig_clusters <- lapply(names(contig_scores), function(name) {
   rep(name, length(na.omit(unlist(contig_scores[[name]])))/3)

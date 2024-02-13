@@ -5,3 +5,4 @@ RUN apt update ; apt install -y libglpk-dev libgmp-dev libxml2-dev libudunits2-d
 # Install required R Modules
 COPY requirements_interpretation.R /tmp/
 RUN Rscript /tmp/requirements_interpretation.R
+RUN Rscript -e "install.packages('tidyverse')"
