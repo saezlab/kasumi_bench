@@ -344,7 +344,7 @@ ggsave("clusterfigs/BCct200.pdf", width = 12, height = 12)
 
 misty.results <- read_rds("BCexpr200.rds")
 
-sm.repr <- sm_labels(misty.results, 0.3, 0.7)
+sm.repr <- sm_labels(misty.results, 0.3, 0.8)
 
 freq.sm <- sm.repr %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -355,7 +355,7 @@ freq.sm <- sm.repr %>%
 mr <- model_reliance(freq.sm)
 ggsave("BCreliance_expr.pdf", height = 5, width = 4)
 
-sm.repr.ext <- sm_labels(misty.results, 0.3, 0.7, freq = FALSE)
+sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
 
 mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
 
@@ -379,32 +379,32 @@ plot_grid(plotlist = cl.list, labels = mr.clusters)
 
 ggsave("clusterfigs/BCexpr200.intra.pdf", width = 20, height = 16)
 
-misty.cluster.3 <- describe_cluster(sm.repr.ext, 3, "BCexpr200.sqm")
+misty.cluster.22 <- describe_cluster(sm.repr.ext, 22, "BCexpr200.sqm")
 
-plot_improvement_stats(misty.cluster.3, trim = 1)
-ggsave("clusterfigs/bc3.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.3, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-ggsave("clusterfigs/bc3h_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.3, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc3c_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.3, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/bc3h.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.3, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc3c.pdf", width = 5, height = 4)
+plot_improvement_stats(misty.cluster.22, trim = 1)
+ggsave("clusterfigs/bc22.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.22, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/bc22h_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.22, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc22c_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.22, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc22h.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.22, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc22c.pdf", width = 5, height = 4)
 
 
-misty.cluster.5 <- describe_cluster(sm.repr.ext, 5, "BCexpr200.sqm")
+misty.cluster.44 <- describe_cluster(sm.repr.ext, 44, "BCexpr200.sqm")
 
-plot_improvement_stats(misty.cluster.5, trim = 1)
-ggsave("clusterfigs/bc5.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/bc5h_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc5c_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.3, clean = TRUE)
-ggsave("clusterfigs/bc5h.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.3, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc5c.pdf", width = 5, height = 4)
+plot_improvement_stats(misty.cluster.44, trim = 1)
+ggsave("clusterfigs/bc44.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.44, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/bc44h_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.44, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc44c_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.44, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc44h.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.44, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc44c.pdf", width = 5, height = 4)
 
 misty.cluster.16 <- describe_cluster(sm.repr.ext, 16, "BCexpr200.sqm")
 

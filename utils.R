@@ -111,7 +111,7 @@ leiden_onsim <- function(representation, minsim = 0.8, resolution = 0.8, measure
   with_seed(
     1,
     groups <-
-      graph.adjacency(sim %>% as.matrix(), mode = "undirected", weighted = TRUE) %>%
+      graph_from_adjacency_matrix(sim %>% as.matrix(), mode = "undirected", weighted = TRUE) %>%
       cluster_leiden(resolution_parameter = resolution, n_iterations = -1)
   )
 
