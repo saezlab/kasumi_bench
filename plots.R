@@ -262,12 +262,12 @@ ggsave("sensitivity.pdf")
 
 
 # Kasumi sees ----
-test <- lymph %>% filter(Spots %in% c(2,6,9,13)) %>% select(Spots,ClusterName,X,Y)
+test <- lymph %>% filter(Spots %in% c(6,39,57,22)) %>% select(Spots,ClusterName,X,Y) %>% mutate(Spots = factor(Spots, levels = c(6,39,57,22)))
 ggplot(test, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
   scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + 
   theme_classic() + theme(legend.position = "bottom")
 
-ggsave("ct_distro.pdf", width=8, height=6)
+ggsave("ct_distro_n.pdf", width=8, height=6)
 
 misty.results <- read_rds("CTCLct400.rds")
 sm.repr <- sm_repr(misty.results, cuts = 0.4, res = 0.9)
@@ -283,10 +283,11 @@ persistent <- sm.freq %>%
   colnames() %>% str_remove_all("\\.")
 
 
-test <- rbind(sm.repr[[7]], sm.repr[28], sm.repr[[3]], sm.repr[29])
+test <- rbind(sm.repr[[28]], sm.repr[[17]], sm.repr[[26]], sm.repr[[9]])
 clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
 
-kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster))
+kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% 
+  filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster), id = factor(id, levels = c(6,39,57,22)))
 
 ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
   facet_wrap(id~.) +
@@ -298,18 +299,18 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, wid
  
  
 misty.results <- read_rds("BCexpr200.rds")
-sm.repr <- sm_repr(misty.results, 0.3, 0.7)
+sm.repr <- sm_repr(misty.results, 0.3, 0.8)
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
-sm.freq <- sm_labels(misty.results, 0.3, 0.7)
+sm.freq <- sm_labels(misty.results, 0.3, 0.8)
 
 persistent <- sm.freq %>% select(-id) %>% colnames() %>% str_remove_all("\\.")
 
-test <- rbind(sm.repr[[12]], sm.repr[[28]], sm.repr[[21]], sm.repr[[24]])
+test <- rbind(sm.repr[[8]], sm.repr[[29]], sm.repr[[7]], sm.repr[[19]])
 clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
 
 kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% 
   filter(cluster %in% persistent) %>% 
-  mutate(cluster = as.factor(cluster), id = factor(id, levels = c(repr.ids[12],repr.ids[28], repr.ids[21], repr.ids[24])))
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = c(repr.ids[8],repr.ids[29], repr.ids[7], repr.ids[19])))
 
 ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, width = 100, alpha = 0.7) + 
   facet_wrap(id~.) +
