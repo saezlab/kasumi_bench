@@ -6,8 +6,6 @@ expr <- read_rds("rocs/dcis.expr.rds")
 ws <- read_rds("rocs/dcis.ws.rds")
 expr.base  <- read_rds("rocs/dcis.expr.base.rds")
 
-resp <- read_csv("data/DCISMIBI/Tissue Feature Data/Table_S1_Patient_Feature_Table.csv")
-
 ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -24,72 +22,6 @@ ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr,  bas
   ggtitle("MIBI DCIS") + theme_light()
 
 ggsave("roc.misty.mibi.pdf", width = 4, height = 3)
-
-misty.results <- read_rds("DCISct200.rds")
-sm.repr <- sm_labels(misty.results, 0.8, 0.5)
-
-freq.sm <- sm.repr %>%
-  left_join(resp %>% select(PointNumber, Status) %>%
-    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
-  rename(target = Status) %>%
-  mutate(target = as.factor(target)) %>%
-  select(-id)
-
-mr <- model_reliance(freq.sm)
-
-ggsave("DCISreliance.pdf", height = 5, width = 4)
-
-sm.repr.ext <- sm_labels(misty.results, 0.8, 0.5, freq = FALSE)
-
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISct200.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/DCISct200.pdf", width = 20, height = 20)
-
-
-misty.results <- read_rds("DCISexpr200.rds")
- 
-sm.repr <- sm_labels(misty.results, 0.6, 0.8)
-
-freq.sm <- sm.repr %>%
-  left_join(resp %>% select(PointNumber, Status) %>%
-    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
-  rename(target = Status) %>%
-  mutate(target = as.factor(target)) %>%
-  select(-id)
-
-mr <- model_reliance(freq.sm)
-ggsave("DCISreliance_expr.pdf", height = 5, width = 4)
-
-sm.repr.ext <- sm_labels(misty.results, 0.6, 0.8, freq = FALSE)
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISexpr200.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.100", trim = 1, cutoff = 0.5, clean = TRUE)
-  last_plot()
-}) 
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/DCISexpr200.pdf", width = 10, height = 8)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "DCISexpr200.sqm")
-  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 0.5, clean = TRUE)
-  last_plot()
-}) 
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/DCISexpr200.intra.pdf", width = 10, height = 8)
 
 
 # CODEX ----
@@ -146,29 +78,6 @@ ggsave("CTCLreliance.pdf", height = 6, width = 4)
 
 sm.repr.ext <- sm_labels(misty.results, 0.4, 0.9, freq = FALSE)
 
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLct400.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/CTCLct400.pdf", width = 16, height = 12)
-
-cl.list.cor <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLct400.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, 
-                           clean = TRUE, correlation = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list.cor, labels = mr.clusters)
-
-ggsave("clusterfigs/CTCLct400_cor.pdf", width = 16, height = 12)
-
 misty.cluster.23 <- describe_cluster(sm.repr.ext, 23, "CTCLct400.sqm")
 
 plot_improvement_stats(misty.cluster.23, trim = 1)
@@ -184,20 +93,20 @@ misty.cluster.23$importances.aggregated <- misty.cluster.23$importances.aggregat
 plot_interaction_communities(misty.cluster.23, view = "paraview.10", 
                              trim = 1, cutoff = 0.5, path = "clusterfigs/ctcl23.graphml")
 
-misty.cluster.8 <- describe_cluster(sm.repr.ext, 8, "CTCLct400.sqm")
+misty.cluster.16 <- describe_cluster(sm.repr.ext, 16, "CTCLct400.sqm")
 
-plot_improvement_stats(misty.cluster.8, trim = 1)
-ggsave("clusterfigs/ctcl8.pdf", width = 4, height = 4)
-plot_interaction_heatmap(misty.cluster.8, "paraview.10", trim = 1, cutoff = 0.7, clean = TRUE)
-ggsave("clusterfigs/ctcl8h.pdf", width = 4, height = 4)
-plot_interaction_heatmap(misty.cluster.8, "paraview.10", trim = 1, cutoff = 0.7, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/ctcl8c.pdf", width = 4, height = 4)
+plot_improvement_stats(misty.cluster.16, trim = 1)
+ggsave("clusterfigs/ctcl16.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.16, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/ctcl16h.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.16, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/ctcl16c.pdf", width = 4, height = 4)
 
-misty.cluster.8$importances.aggregated <- misty.cluster.8$importances.aggregated %>% 
+misty.cluster.16$importances.aggregated <- misty.cluster.16$importances.aggregated %>% 
   mutate(Predictor = str_remove(Predictor, "^p\\."))
 
-plot_interaction_communities(misty.cluster.8, view = "paraview.10", 
-                             trim = 1, cutoff = 0.7, path = "clusterfigs/ctcl8.graphml")
+plot_interaction_communities(misty.cluster.16, view = "paraview.10", 
+                             trim = 1, cutoff = 0.5, path = "clusterfigs/ctcl16.graphml")
 
 
 misty.cluster.4 <- describe_cluster(sm.repr.ext, 4, "CTCLct400.sqm")
@@ -216,60 +125,20 @@ plot_interaction_communities(misty.cluster.4, view = "paraview.10",
                              trim = 1, cutoff = 0.5, path = "clusterfigs/ctcl4.graphml")
 
 
-misty.cluster.5 <- describe_cluster(sm.repr.ext, 5, "CTCLct400.sqm")
+misty.cluster.13 <- describe_cluster(sm.repr.ext, 13, "CTCLct400.sqm")
 
-plot_improvement_stats(misty.cluster.5, trim =1)
-ggsave("clusterfigs/ctcl5.pdf", width = 4, height = 4)
-plot_interaction_heatmap(misty.cluster.5, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/ctcl5h.pdf", width = 4, height = 4)
-plot_interaction_heatmap(misty.cluster.5, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/ctcl5c.pdf", width = 4, height = 4)
+plot_improvement_stats(misty.cluster.13, trim =1)
+ggsave("clusterfigs/ctcl13.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.13, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/ctcl13h.pdf", width = 4, height = 4)
+plot_interaction_heatmap(misty.cluster.13, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/ctcl13c.pdf", width = 4, height = 4)
 
-misty.cluster.5$importances.aggregated <- misty.cluster.5$importances.aggregated %>% 
+misty.cluster.13$importances.aggregated <- misty.cluster.13$importances.aggregated %>% 
   mutate(Predictor = str_remove(Predictor, "^p\\."))
 
-plot_interaction_communities(misty.cluster.5, view = "paraview.10", 
-                             trim = 1, cutoff = 0.5, path = "clusterfigs/ctcl5.graphml")
-
-
-misty.results <- read_rds("CTCLexpr400.rds")
-sm.repr <- sm_labels(misty.results, 0.3, 0.5)
-
-freq.sm <- sm.repr %>%
-  left_join(outcome %>%
-              mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
-  rename(target = Groups) %>%
-  mutate(target = as.factor(make.names(target))) %>%
-  select(-id, -Patients)
-
-mr <- model_reliance(freq.sm)
-
-ggsave("CTCLreliance_expr.pdf", height = 6, width = 4)
-
-
-sm.repr.ext <- sm_labels(misty.results, 0.3, 0.5, freq = FALSE)
-
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLexpr400.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.100", trim = 1, cutoff = 0.5, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/CTCLexpr400.pdf", width = 15, height = 8)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "CTCLexpr400.sqm")
-  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/CTCLexpr400.intra.pdf", width = 15, height = 8)
+plot_interaction_communities(misty.cluster.13, view = "paraview.10", 
+                             trim = 1, cutoff = 0.5, path = "clusterfigs/ctcl13.graphml")
 
 
 # IMC ----
@@ -313,34 +182,6 @@ ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base
 
 ggsave("roc.misty.imc.pdf", width = 4, height = 3)
 
-misty.results <- read_rds("BCct200.rds")
-
-sm.repr <- sm_labels(misty.results, 0.3, 0.8)
-
-freq.sm <- sm.repr %>%
-  left_join(resp, by = c("id" = "core")) %>%
-  rename(target = response) %>%
-  mutate(target = as.factor(make.names(target))) %>%
-  select(-id)
-
-mr <- model_reliance(freq.sm)
-ggsave("BCreliance.pdf", height = 5, width = 4)
-
-sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
-
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCct200.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.10", trim = 1, cutoff = 1, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/BCct200.pdf", width = 12, height = 12)
-
-
 
 misty.results <- read_rds("BCexpr200.rds")
 
@@ -357,68 +198,32 @@ ggsave("BCreliance_expr.pdf", height = 5, width = 4)
 
 sm.repr.ext <- sm_labels(misty.results, 0.3, 0.8, freq = FALSE)
 
-mr.clusters <- mr %>% filter(abs(sMR) >= 1) %>% arrange(-sMR) %>% pull(Cluster)
+misty.cluster.37 <- describe_cluster(sm.repr.ext, 37, "BCexpr200.sqm")
 
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCexpr200.sqm")
-  plot_interaction_heatmap(misty.cluster, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/BCexpr200.pdf", width = 20, height = 16)
-
-cl.list <- mr.clusters %>% map(\(cl){
-  misty.cluster <- describe_cluster(sm.repr.ext, cl, "BCexpr200.sqm")
-  plot_interaction_heatmap(misty.cluster, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-  last_plot()
-})
-
-plot_grid(plotlist = cl.list, labels = mr.clusters)
-
-ggsave("clusterfigs/BCexpr200.intra.pdf", width = 20, height = 16)
-
-misty.cluster.22 <- describe_cluster(sm.repr.ext, 22, "BCexpr200.sqm")
-
-plot_improvement_stats(misty.cluster.22, trim = 1)
-ggsave("clusterfigs/bc22.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.22, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-ggsave("clusterfigs/bc22h_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.22, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc22c_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.22, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/bc22h.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.22, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc22c.pdf", width = 5, height = 4)
+plot_improvement_stats(misty.cluster.37, trim = 1)
+ggsave("clusterfigs/bc37.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.37, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/bc37h_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.37, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc37c_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.37, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc37h.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.37, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc37c.pdf", width = 5, height = 4)
 
 
-misty.cluster.44 <- describe_cluster(sm.repr.ext, 44, "BCexpr200.sqm")
+misty.cluster.5 <- describe_cluster(sm.repr.ext, 5, "BCexpr200.sqm")
 
-plot_improvement_stats(misty.cluster.44, trim = 1)
-ggsave("clusterfigs/bc44.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.44, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-ggsave("clusterfigs/bc44h_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.44, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc44c_intra.pdf", width = 5, height = 5)
-plot_interaction_heatmap(misty.cluster.44, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/bc44h.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.44, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc44c.pdf", width = 5, height = 4)
-
-misty.cluster.16 <- describe_cluster(sm.repr.ext, 16, "BCexpr200.sqm")
-
-plot_improvement_stats(misty.cluster.16, trim = 1)
-ggsave("clusterfigs/bc16.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.16, "intraview", trim = 1, cutoff = 1, clean = TRUE)
-ggsave("clusterfigs/bc16h_intra.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.16, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc16c_intra.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.16, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
-ggsave("clusterfigs/bc16h.pdf", width = 5, height = 4)
-plot_interaction_heatmap(misty.cluster.16, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
-ggsave("clusterfigs/bc16c.pdf", width = 5, height = 4)
-
+plot_improvement_stats(misty.cluster.5, trim = 1)
+ggsave("clusterfigs/bc5.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 1, clean = TRUE)
+ggsave("clusterfigs/bc5h_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.5, "intraview", trim = 1, cutoff = 1, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc5c_intra.pdf", width = 5, height = 5)
+plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE)
+ggsave("clusterfigs/bc5h.pdf", width = 5, height = 4)
+plot_interaction_heatmap(misty.cluster.5, "paraview.50", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
+ggsave("clusterfigs/bc5c.pdf", width = 5, height = 4)
 
 
 

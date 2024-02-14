@@ -91,8 +91,7 @@ gp <- ggplot(cluster_stats, aes(y = samples, x = windows, color = sMR)) +
      xlab("Number of windows") + 
      ylab("Number of samples") + 
     scale_color_steps2(low = "#008837", mid = "white", high = "#7b3294", na.value="gray75")
-ggsave("CTCLct400_cluster_frequency.pdf", gp)
-ggsave("CTCLct400_cluster_frequency.png", gp)
+ggsave("CTCLct400_cluster_frequency.pdf", gp, height = 5, width = 5)
 
 # For all the selected clusters
 # (Non-randomly spread across samples and useful for classification)
@@ -132,15 +131,15 @@ gp <- ggplot(contiguity_df, aes(x = clusters, y = scores)) +
     geom_text(aes(label = text), data = pval_df, size = 3, y = xmax - 0.1) +
     guides(fill = guide_legend("I values", reverse = TRUE))
 
-ggsave("CTCLct400_cluster_moran_signif.pdf", gp)
-ggsave("CTCLct400_cluster_moran_signif.png", gp)
+ggsave("CTCLct400_cluster_moran_signif.pdf", gp, height = 5, width = 5)
+
 
 
 # IMC
 
 misty.results <- read_rds("BCexpr200.rds")
 
-bmeta <- read_csv("data/Basel_PatientMetadata.csv")
+bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
 with_seed(
   1,
   cores <- bmeta %>%
@@ -230,8 +229,7 @@ gp <- ggplot(cluster_stats, aes(y = samples, x = windows, color = sMR)) +
      xlab("Number of windows") + 
      ylab("Number of samples") + 
     scale_color_steps2(low = "#008837", mid = "white", high = "#7b3294", na.value="gray75")
-ggsave("BCexpr200_cluster_frequency.pdf", gp)
-#ggsave("BCexpr200_cluster_frequency.png", gp)
+ggsave("BCexpr200_cluster_frequency.pdf", gp, height = 5, width = 5)
 
 # For all the selected clusters
 # (Non-randomly spread across samples and useful for classification)
@@ -271,5 +269,4 @@ gp <- ggplot(contiguity_df, aes(x = clusters, y = scores)) +
     geom_text(aes(label = text), data = pval_df, size = 3, y = xmax - 0.1) +
     guides(fill = guide_legend("I values", reverse = TRUE))
 
-ggsave("BCexpr200_cluster_moran_signif.pdf", gp)
-#ggsave("BCexpr200_cluster_moran_signif.png", gp)
+ggsave("BCexpr200_cluster_moran_signif.pdf", gp, height = 5, width = 5)
