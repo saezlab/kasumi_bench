@@ -14,6 +14,9 @@ library(DBI)
 library(RSQLite)
 library(rlist)
 library(cowplot)
+library(extraDistr)
+library(ggrepel)
+library(spdep)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -434,92 +437,31 @@ describe_cluster <- function(sm.repr, cluster, db.file) {
 }
 
 
-# prototype. matching ids fixed for dcis.
-wcounts <- function(all.expr, all.positions, window, overlap) {
-  all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
-    expr <- all.expr[[i]]
-    positions <- all.positions[[i]]
 
-    x <- tibble::tibble(
-      xl = seq(
-        min(positions[, 1]),
-        max(positions[, 1]),
-        window - window * overlap / 100
-      ),
-      xu = xl + window
-    ) %>%
-      dplyr::filter(xl < max(positions[, 1])) %>%
-      dplyr::mutate(xu = pmin(xu, max(positions[, 1]))) %>%
-      round(2)
+# Shared functions for interpretation
 
-    y <- tibble::tibble(
-      yl = seq(
-        min(positions[, 2]),
-        max(positions[, 2]),
-        window - window * overlap / 100
-      ),
-      yu = yl + window
-    ) %>%
-      dplyr::filter(yl < max(positions[, 2])) %>%
-      dplyr::mutate(yu = pmin(yu, max(positions[, 2]))) %>%
-      round(2)
+moran_score <- function(repr, clust, stride = 100, pval = FALSE){
+  sapply(repr, function(X) moran_score_sample(X, clust, stride, pval))
+}
 
-    tiles <- tidyr::expand_grid(x, y)
-
-    tiles %>%
-      pmap_dfr(\(xl, xu, yl, yu){
-        selected.rows <- which(
-          positions[, 1] >= xl & positions[, 1] <= xu &
-            positions[, 2] >= yl & positions[, 2] <= yu
-        )
-
-        expr %>%
-          slice(selected.rows) %>%
-          colSums()
-      }) %>%
-      add_column(id = names(all.expr)[i])
-  })
-
-
-  seq(0.1, 0.9, 0.1) %>% walk(\(cuts){
-    seq(0.5, 0.9, 0.1) %>% walk(\(res){
-      clusters <- leiden_onsim(all.windows %>% select(-id), cuts, res)
-
-      wc.repr <- cbind(cluster = clusters, id = all.windows %>% pull(id)) %>%
-        as_tibble() %>%
-        group_by(id, cluster) %>%
-        tally() %>%
-        ungroup() %>%
-        pivot_wider(names_from = "cluster", values_from = "n") %>%
-        replace(is.na(.), 0) #%>% select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
-
-      repr.ids <- wc.repr %>% pull(id)
-
-      # DCIS
-      # freq.wc <- wc.repr %>%
-      #   left_join(resp %>% select(PointNumber, Status) %>%
-      #     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
-      #   rename(target = Status) %>%
-      #   mutate(target = as.factor(target)) %>%
-      #   select(-id)
-
-      # CTCL
-      # freq.wc <- wc.repr %>%
-      #   left_join(outcome %>%
-      #     mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
-      #   rename(target = Groups) %>%
-      #   mutate(target = as.factor(make.names(target))) %>%
-      #   select(-id, -Patients)
-      
-      #BC
-      freq.wc <- wc.repr %>%
-        left_join(resp, by = c("id" = "core")) %>%
-        rename(target = response) %>%
-        mutate(target = as.factor(make.names(target))) %>%
-        select(-id)
-
-      roc.wc <- classify(freq.wc)
-      print(paste(cuts, res, roc.wc$auc))
-    })
-  })
+moran_score_sample <- function(sample_rep, clust, stride, pval = FALSE) {
+  clust_bool <- sample_rep[[clust]]
+  if (sum(clust_bool) <= 1){
+    return(NA)
+  }
+  
+  x <- sample_rep$x
+  y <- sample_rep$y
+  distmat <- dist(cbind(x,y))
+  neighbors <- as.matrix(distmat) <= stride
+  diag(neighbors) <- FALSE # Self-edges
+  lw <- mat2listw(neighbors, style="W")
+  
+  if (pval) {
+    I <- moran.test(as.numeric(clust_bool), lw)
+    return(c(I$estimate[1], I$estimate[2], I$p.value))
+  } else {
+    I <- moran(clust_bool, lw, length(lw$n), Szero(lw))[1]
+    return(unlist(I))        
+  }
 }

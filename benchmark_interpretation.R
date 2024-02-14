@@ -1,35 +1,4 @@
 source("utils.R")
-library(extraDistr)
-library(ggrepel)
-library(spdep)
-
-# Shared functions
-
-moran_score <- function(repr, clust, stride = 100, pval = FALSE){
-    sapply(repr, function(X) moran_score_sample(X, clust, stride, pval))
-    }
-
-moran_score_sample <- function(sample_rep, clust, stride, pval = FALSE) {
-    clust_bool <- sample_rep[[clust]]
-    if (sum(clust_bool) <= 1){
-        return(NA)
-    }
-
-    x <- sample_rep$x
-    y <- sample_rep$y
-    distmat <- dist(cbind(x,y))
-    neighbors <- as.matrix(distmat) <= stride
-    diag(neighbors) <- FALSE # Self-edges
-    lw <- mat2listw(neighbors, style="W")
-    
-    if (pval) {
-        I <- moran.test(as.numeric(clust_bool), lw)
-        return(c(I$estimate[1], I$estimate[2], I$p.value))
-    } else {
-        I <- moran(clust_bool, lw, length(lw$n), Szero(lw))[1]
-        return(unlist(I))        
-    }
-}
 
 # CTCL
 
@@ -57,8 +26,8 @@ cluster_stats$selected <- cluster_stats$names %in% names(sm.repr)
 
 # Number of samples, pop size per class, number of draws
 expected_samples_for_x_windows <- function(x, repet = 50000){
-    X = rmvhyper(repet, sapply(sm.repr.ext, nrow), x)
-    X = rowSums(X > 0)
+    X <- rmvhyper(repet, sapply(sm.repr.ext, nrow), x)
+    X <- rowSums(X > 0)
     return(quantile(x = X, probs = c(0.1,0.5,0.9)))
 }
 
@@ -68,9 +37,9 @@ with_seed(
             expected_samples_for_x_windows)
 )
 
-expected_samples_per_windows = data.frame(t(expected_samples_per_windows))
-expected_samples_per_windows$windows = min(cluster_stats$windows):max(cluster_stats$windows)
-expected_samples_per_windows$selected = "Expectation"
+expected_samples_per_windows <- data.frame(t(expected_samples_per_windows))
+expected_samples_per_windows$windows <- min(cluster_stats$windows):max(cluster_stats$windows)
+expected_samples_per_windows$selected <- "Expectation"
 
 lymph <- read_csv("data/LymphomaCODEX/single_cells.csv")
 
@@ -218,8 +187,8 @@ cluster_stats$selected <- cluster_stats$names %in% names(sm.repr)
 
 # Number of samples, pop size per class, number of draws
 expected_samples_for_x_windows <- function(x, repet = 50000){
-    X = rmvhyper(repet, sapply(sm.repr.ext, nrow), x)
-    X = rowSums(X > 0)
+    X <- rmvhyper(repet, sapply(sm.repr.ext, nrow), x)
+    X <- rowSums(X > 0)
     return(quantile(x = X, probs = c(0.1,0.5,0.9)))
 }
 
@@ -229,9 +198,9 @@ with_seed(
             expected_samples_for_x_windows)
 )
 
-expected_samples_per_windows = data.frame(t(expected_samples_per_windows))
-expected_samples_per_windows$windows = min(cluster_stats$windows):max(cluster_stats$windows)
-expected_samples_per_windows$selected = "Expectation"
+expected_samples_per_windows <- data.frame(t(expected_samples_per_windows))
+expected_samples_per_windows$windows <- min(cluster_stats$windows):max(cluster_stats$windows)
+expected_samples_per_windows$selected <- "Expectation"
 
 cluster_stats$names <- str_remove(string = cluster_stats$names, pattern = "...")
 cluster_stats <- cluster_stats %>%
@@ -262,7 +231,7 @@ gp <- ggplot(cluster_stats, aes(y = samples, x = windows, color = sMR)) +
      ylab("Number of samples") + 
     scale_color_steps2(low = "#008837", mid = "white", high = "#7b3294", na.value="gray75")
 ggsave("BCexpr200_cluster_frequency.pdf", gp)
-ggsave("BCexpr200_cluster_frequency.png", gp)
+#ggsave("BCexpr200_cluster_frequency.png", gp)
 
 # For all the selected clusters
 # (Non-randomly spread across samples and useful for classification)
@@ -303,4 +272,4 @@ gp <- ggplot(contiguity_df, aes(x = clusters, y = scores)) +
     guides(fill = guide_legend("I values", reverse = TRUE))
 
 ggsave("BCexpr200_cluster_moran_signif.pdf", gp)
-ggsave("BCexpr200_cluster_moran_signif.png", gp)
+#ggsave("BCexpr200_cluster_moran_signif.png", gp)
