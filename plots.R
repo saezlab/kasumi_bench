@@ -262,12 +262,12 @@ ggsave("sensitivity.pdf")
 
 
 # Kasumi sees ----
-test <- lymph %>% filter(Spots %in% c(6,39,57,22)) %>% select(Spots,ClusterName,X,Y) %>% mutate(Spots = factor(Spots, levels = c(6,39,57,22)))
+test <- lymph %>% filter(Spots %in% c(2,39,57,22)) %>% select(Spots,ClusterName,X,Y) %>% mutate(Spots = factor(Spots, levels = c(2,39,57,22)))
 ggplot(test, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
   scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + 
   theme_classic() + theme(legend.position = "bottom")
 
-ggsave("ct_distro_n.pdf", width=8, height=6)
+ggsave("ct_distro.pdf", width=8, height=6)
 
 misty.results <- read_rds("CTCLct400.rds")
 sm.repr <- sm_repr(misty.results, cuts = 0.4, res = 0.9)
@@ -283,11 +283,11 @@ persistent <- sm.freq %>%
   colnames() %>% str_remove_all("\\.")
 
 
-test <- rbind(sm.repr[[28]], sm.repr[[17]], sm.repr[[26]], sm.repr[[9]])
+test <- rbind(sm.repr[[7]], sm.repr[[17]], sm.repr[[26]], sm.repr[[9]])
 clusters <- test %>% select(-c(id,x,y)) %>% apply(1,which)
 
 kasumirep <- test %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>% 
-  filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster), id = factor(id, levels = c(6,39,57,22)))
+  filter(cluster %in% persistent) %>% mutate(cluster = as.factor(cluster), id = factor(id, levels = c(2,39,57,22)))
 
 ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
   facet_wrap(id~.) +
