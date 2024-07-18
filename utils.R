@@ -17,6 +17,8 @@ library(cowplot)
 library(extraDistr)
 library(ggrepel)
 library(spdep)
+library(Banksy)
+library(SpatialExperiment)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -163,6 +165,52 @@ cn_labels <- function(neighborhoods, k) {
     add_column(id = repr.ids.cn)
 
   return(freq.cn)
+}
+
+
+
+
+banksy_labels <- function(all.cells, all.positions, k, l) {
+  spe_list <- map2(
+    names(all.cells), all.positions,
+    \(id, pos) SpatialExperiment(
+      assay = list(counts = t(all.cells[[id]])),
+      spatialCoords = as.matrix(pos),
+      sample_id = paste0("banksy", id)
+    )
+  )
+
+  spe_list <- map(spe_list, \(spe) computeBanksy(spe,
+    assay_name = "counts",
+    compute_agf = TRUE, k_geom = k
+  ))
+  spe_joint <- do.call(cbind, spe_list)
+  rm(spe_list)
+
+  # both cell type and niches
+  # l <- c(0.2,0.8)
+
+  use_agf <- FALSE
+  spe_joint <- runBanksyPCA(spe_joint,
+    use_agf = use_agf, lambda = l,
+    group = "sample_id", seed = 1000
+  )
+  spe_joint <- runBanksyUMAP(spe_joint, use_agf = use_agf, lambda = l, seed = 1000)
+  spe_joint <- clusterBanksy(spe_joint, use_agf = use_agf, lambda = l, seed = 1000, resolution = seq(0.5, 0.9, 0.1))
+  spe_list <- lapply(
+    paste0("banksy", names(all.cells)),
+    \(id) spe_joint[, spe_joint$sample_id == id]
+  )
+  rm(spe_joint)
+
+  result.list <- seq(2, 6) %>% map(\(res){
+    spe_list %>%
+      map_dfr(\(spe){
+        labels <- table(colData(spe)[, res])
+        labels / sum(labels)
+      }) %>%
+      add_column(id = names(all.cells))
+  })
 }
 
 
@@ -351,7 +399,6 @@ optimal_smclust <- function(misty.results, true.labels) {
 # Fisher, Rudin, Dominici, JMLR, 2019
 # signed Model Reliance
 model_reliance <- function(freq.sm) {
-  
   model <- glm(target ~ ., freq.sm, family = "binomial")
 
   eorig <- classify(freq.sm)
@@ -373,7 +420,7 @@ model_reliance <- function(freq.sm) {
       classify(freq.sm %>% select(-nas) %>%
         mutate(!!cname := freq.sm[splitr, cname] %>% unlist()), dir)$auc
     })
-  
+
 
   mr <- dir.sign * sign(coef(model, complete = FALSE)[-1]) * (1 - eswitch) / (1 - eorig$auc)
 
@@ -440,28 +487,28 @@ describe_cluster <- function(sm.repr, cluster, db.file) {
 
 # Shared functions for interpretation
 
-moran_score <- function(repr, clust, stride = 100, pval = FALSE){
+moran_score <- function(repr, clust, stride = 100, pval = FALSE) {
   sapply(repr, function(X) moran_score_sample(X, clust, stride, pval))
 }
 
 moran_score_sample <- function(sample_rep, clust, stride, pval = FALSE) {
   clust_bool <- sample_rep[[clust]]
-  if (sum(clust_bool) <= 1){
+  if (sum(clust_bool) <= 1) {
     return(NA)
   }
-  
+
   x <- sample_rep$x
   y <- sample_rep$y
-  distmat <- dist(cbind(x,y))
+  distmat <- dist(cbind(x, y))
   neighbors <- as.matrix(distmat) <= stride
   diag(neighbors) <- FALSE # Self-edges
-  lw <- mat2listw(neighbors, style="W")
-  
+  lw <- mat2listw(neighbors, style = "W")
+
   if (pval) {
     I <- moran.test(as.numeric(clust_bool), lw)
     return(c(I$estimate[1], I$estimate[2], I$p.value))
   } else {
     I <- moran(clust_bool, lw, length(lw$n), Szero(lw))[1]
-    return(unlist(I))        
+    return(unlist(I))
   }
 }

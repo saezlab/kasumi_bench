@@ -42,36 +42,35 @@ repr.ids <- roc.sm.dcis <- NULL
 max.auc <- 0
 
 rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+  plan(multisession, workers = 9)
+  misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, ws, 20, paste0("DCISexpr", ws, ".sqm"), "gaussian")
 
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, ws, 20, paste0("DCISexpr",ws,".sqm"), "gaussian")
+  plan(multisession, workers = 9)
+  param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
+    rename(id = PointNumber, target = Status) %>%
+    filter(target %in% c("progressor", "nonprogressor")) %>%
+    mutate(id = as.character(id), target = as.factor(target)))
 
-plan(multisession, workers = 9)
-param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
-  rename(id = PointNumber, target = Status) %>%
-  filter(target %in% c("progressor", "nonprogressor")) %>%
-  mutate(id = as.character(id), target = as.factor(target)))
-
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-
-
-freq.sm <- sm.repr %>%
-  left_join(resp %>% select(PointNumber, Status) %>%
-    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
-  rename(target = Status) %>%
-  mutate(target = as.factor(target)) %>%
-  select(-id)
+  sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
 
-roc.sm.dcis <- classify(freq.sm)
+  freq.sm <- sm.repr %>%
+    left_join(resp %>% select(PointNumber, Status) %>%
+      mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+    rename(target = Status) %>%
+    mutate(target = as.factor(target)) %>%
+    select(-id)
 
-if(roc.sm.dcis$auc > max.auc){
-  roc.sm.dcis <<- roc.sm.dcis
-  repr.ids <<- repr.ids
-  max.auc <<- roc.sm.dcis$auc
-}
 
-roc.sm.dcis$auc
+  roc.sm.dcis <- classify(freq.sm)
+
+  if (roc.sm.dcis$auc > max.auc) {
+    roc.sm.dcis <<- roc.sm.dcis
+    repr.ids <<- repr.ids
+    max.auc <<- roc.sm.dcis$auc
+  }
+
+  roc.sm.dcis$auc
 })
 
 write_rds(roc.sm.dcis, "rocs/dcis.expr.rds")
@@ -95,6 +94,49 @@ freq.dcis <- all.cells.dcis %>%
 roc.fr <- classify(freq.dcis)
 
 write_rds(roc.fr, "rocs/dcis.expr.base.rds")
+
+## Alternatives ----
+
+freq.banksy.ct <- banksy_labels(all.cells.dcis, all.positions.dcis, 10, 0.2)
+
+
+rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
+freq.banksy <- fbc %>%
+  left_join(
+    resp %>%
+      select(PointNumber, Status) %>%
+      mutate(PointNumber = as.character(PointNumber)),
+    by = join_by(id == PointNumber)
+  ) %>%
+  select(-id) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target))
+
+  classify(freq.banksy)
+})
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+
+freq.banksy.niche <- banksy_labels(all.cells.dcis, all.positions.dcis, 10, 0.8)
+
+rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
+  freq.banksy <- fbn %>%
+    left_join(
+      resp %>%
+        select(PointNumber, Status) %>%
+        mutate(PointNumber = as.character(PointNumber)),
+      by = join_by(id == PointNumber)
+    ) %>%
+    select(-id) %>%
+    rename(target = Status) %>%
+    mutate(target = as.factor(target))
+  
+  classify(freq.banksy)
+})
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+
+write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
+          "rocs/dcis.expr.alts.rds")
+
 
 # CODEX ----
 
@@ -172,6 +214,46 @@ freq.lymph <- all.cells.lymph %>%
 roc.fr <- classify(freq.lymph)
 
 write_rds(roc.fr, "rocs/ctcl.expr.base.rds")
+
+## Alternatives ----
+
+freq.banksy.ct <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.2)
+
+rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
+  freq.banksy <- fbc %>%
+    left_join(
+      outcome %>% mutate(Spots = as.character(Spots)), 
+      by = join_by(id == Spots)
+    ) %>%
+    select(-Patients) %>%
+    rename(target = Groups) %>%
+    mutate(target = as.factor(make.names(target)))
+  
+  classify(freq.banksy)
+})
+
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+
+freq.banksy.niche <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.8)
+
+rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
+  freq.banksy <- fbn %>%
+    left_join(
+      outcome %>% mutate(Spots = as.character(Spots)), 
+      by = join_by(id == Spots)
+    ) %>%
+    select(-Patients) %>%
+    rename(target = Groups) %>%
+    mutate(target = as.factor(make.names(target)))
+  
+  classify(freq.banksy)
+})
+
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+
+write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
+          "rocs/ctcl.expr.alts.rds")
+
 
 
 # IMC ----
@@ -286,3 +368,40 @@ freq.bc <- all.cells.bc %>%
 
 roc.fr <- classify(freq.bc)
 write_rds(roc.fr, "rocs/bc.expr.base.rds")
+
+## Alternatives ----
+
+freq.banksy.ct <- banksy_labels(all.cells.bc, all.positions.bc, 10, 0.2)
+
+rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
+  freq.banksy <- fbc %>%
+    left_join(
+      resp, 
+      by = join_by(id == core)
+    ) %>%
+    rename(target = response) %>%
+    mutate(target = as.factor(make.names(target)))
+  
+  classify(freq.banksy)
+})
+
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+
+freq.banksy.niche <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.8)
+
+rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
+  freq.banksy <- fbn %>%
+    left_join(
+      resp, 
+      by = join_by(id == core)
+    ) %>%
+    rename(target = response) %>%
+    mutate(target = as.factor(make.names(target)))
+  
+  classify(freq.banksy)
+})
+
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+
+write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
+          "rocs/bc.expr.alts.rds")
