@@ -101,20 +101,20 @@ freq.banksy.ct <- banksy_labels(all.cells.dcis, all.positions.dcis, 10, 0.2)
 
 
 rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
-freq.banksy <- fbc %>%
-  left_join(
-    resp %>%
-      select(PointNumber, Status) %>%
-      mutate(PointNumber = as.character(PointNumber)),
-    by = join_by(id == PointNumber)
-  ) %>%
-  select(-id) %>%
-  rename(target = Status) %>%
-  mutate(target = as.factor(target))
+  freq.banksy <- fbc %>%
+    left_join(
+      resp %>%
+        select(PointNumber, Status) %>%
+        mutate(PointNumber = as.character(PointNumber)),
+      by = join_by(id == PointNumber)
+    ) %>%
+    select(-id) %>%
+    rename(target = Status) %>%
+    mutate(target = as.factor(target))
 
   classify(freq.banksy)
 })
-roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~ .x$auc))]]
 
 freq.banksy.niche <- banksy_labels(all.cells.dcis, all.positions.dcis, 10, 0.8)
 
@@ -129,13 +129,46 @@ rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
     select(-id) %>%
     rename(target = Status) %>%
     mutate(target = as.factor(target))
-  
+
   classify(freq.banksy)
 })
-roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~ .x$auc))]]
 
-write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
-          "rocs/dcis.expr.alts.rds")
+export_anndata(all.cells.dcis, all.posistions.dcis, "dcis.r5ad")
+
+freq.cc <- read_csv("dcis_l1_k3.csv")
+
+roc.cc.l1 <- freq.cc %>%
+  left_join(
+    resp %>%
+      select(PointNumber, Status),
+    by = join_by(sample == PointNumber)
+  ) %>%
+  select(-sample) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target)) %>%
+  classify()
+
+freq.cc <- read_csv("dcis_l3_k3.csv")
+
+roc.cc.l3 <- freq.cc %>%
+  left_join(
+    resp %>%
+      select(PointNumber, Status),
+    by = join_by(sample == PointNumber)
+  ) %>%
+  select(-sample) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target)) %>%
+  classify()
+
+write_rds(
+  list(
+    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+  ),
+  "rocs/dcis.expr.alts.rds"
+)
 
 
 # CODEX ----
@@ -222,38 +255,68 @@ freq.banksy.ct <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.2)
 rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
   freq.banksy <- fbc %>%
     left_join(
-      outcome %>% mutate(Spots = as.character(Spots)), 
+      outcome %>% mutate(Spots = as.character(Spots)),
       by = join_by(id == Spots)
     ) %>%
     select(-Patients) %>%
     rename(target = Groups) %>%
     mutate(target = as.factor(make.names(target)))
-  
+
   classify(freq.banksy)
 })
 
-roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~ .x$auc))]]
 
 freq.banksy.niche <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.8)
 
 rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
   freq.banksy <- fbn %>%
     left_join(
-      outcome %>% mutate(Spots = as.character(Spots)), 
+      outcome %>% mutate(Spots = as.character(Spots)),
       by = join_by(id == Spots)
     ) %>%
     select(-Patients) %>%
     rename(target = Groups) %>%
     mutate(target = as.factor(make.names(target)))
-  
+
   classify(freq.banksy)
 })
 
-roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~ .x$auc))]]
 
-write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
-          "rocs/ctcl.expr.alts.rds")
+export_anndata(all.cells.lymph, all.posistions.lymph, "lymph.r5ad")
 
+freq.cc <- read_csv("lymph_l1_k5.csv")
+
+roc.cc.l1 <- freq.cc %>%
+  left_join(
+    outcome,
+    by = join_by(sample == Spots)
+  ) %>%
+  select(-Patients) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  classify()
+
+freq.cc <- read_csv("lymph_l3_k4.csv")
+
+roc.cc.l3 <- freq.cc %>%
+  left_join(
+    outcome,
+    by = join_by(sample == Spots)
+  ) %>%
+  select(-Patients) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  classify()
+
+write_rds(
+  list(
+    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+  ),
+  "rocs/ctcl.expr.alts.rds"
+)
 
 
 # IMC ----
@@ -376,32 +439,61 @@ freq.banksy.ct <- banksy_labels(all.cells.bc, all.positions.bc, 10, 0.2)
 rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
   freq.banksy <- fbc %>%
     left_join(
-      resp, 
+      resp,
       by = join_by(id == core)
     ) %>%
     rename(target = response) %>%
     mutate(target = as.factor(make.names(target)))
-  
+
   classify(freq.banksy)
 })
 
-roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~.x$auc))]]
+roc.banksy.ct <- rocs.banksy.ct[[which.max(rocs.banksy.ct %>% map_dbl(~ .x$auc))]]
 
 freq.banksy.niche <- banksy_labels(all.cells.lymph, all.positions.lymph, 10, 0.8)
 
 rocs.banksy.niche <- freq.banksy.niche %>% map(\(fbn){
   freq.banksy <- fbn %>%
     left_join(
-      resp, 
+      resp,
       by = join_by(id == core)
     ) %>%
     rename(target = response) %>%
     mutate(target = as.factor(make.names(target)))
-  
+
   classify(freq.banksy)
 })
 
-roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~.x$auc))]]
+roc.banksy.niche <- rocs.banksy.niche[[which.max(rocs.banksy.niche %>% map_dbl(~ .x$auc))]]
 
-write_rds(list(banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche), 
-          "rocs/bc.expr.alts.rds")
+export_anndata(all.cells.bc, all.posistions.bc, "bc.r5ad")
+
+freq.cc <- read_csv("bc_l1_k4.csv")
+
+roc.cc.l1 <- freq.cc %>%
+  left_join(
+    resp,
+    by = join_by(sample == core)
+  ) %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  classify()
+
+freq.cc <- read_csv("bc_l3_k2.csv")
+
+roc.cc.l3 <- freq.cc %>%
+  left_join(
+    resp,
+    by = join_by(sample == core)
+  ) %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  classify()
+
+write_rds(
+  list(
+    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+  ),
+  "rocs/bc.expr.alts.rds"
+)

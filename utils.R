@@ -17,8 +17,9 @@ library(cowplot)
 library(extraDistr)
 library(ggrepel)
 library(spdep)
-library(Banksy)
-library(SpatialExperiment)
+# library(Banksy)
+# library(SpatialExperiment)
+# library(anndata)
 
 
 # these two functions for highest level first and second order representation per slide
@@ -173,14 +174,14 @@ cn_labels <- function(neighborhoods, k) {
 banksy_labels <- function(all.cells, all.positions, k, l) {
   spe_list <- map2(
     names(all.cells), all.positions,
-    \(id, pos) SpatialExperiment(
+    \(id, pos) SpatialExperiment::SpatialExperiment(
       assay = list(counts = t(all.cells[[id]])),
       spatialCoords = as.matrix(pos),
       sample_id = paste0("banksy", id)
     )
   )
 
-  spe_list <- map(spe_list, \(spe) computeBanksy(spe,
+  spe_list <- map(spe_list, \(spe) Banksy::computeBanksy(spe,
     assay_name = "counts",
     compute_agf = TRUE, k_geom = k
   ))
@@ -191,12 +192,12 @@ banksy_labels <- function(all.cells, all.positions, k, l) {
   # l <- c(0.2,0.8)
 
   use_agf <- FALSE
-  spe_joint <- runBanksyPCA(spe_joint,
+  spe_joint <- Banksy::runBanksyPCA(spe_joint,
     use_agf = use_agf, lambda = l,
     group = "sample_id", seed = 1000
   )
-  spe_joint <- runBanksyUMAP(spe_joint, use_agf = use_agf, lambda = l, seed = 1000)
-  spe_joint <- clusterBanksy(spe_joint, use_agf = use_agf, lambda = l, seed = 1000, resolution = seq(0.5, 0.9, 0.1))
+  spe_joint <- Banksy::runBanksyUMAP(spe_joint, use_agf = use_agf, lambda = l, seed = 1000)
+  spe_joint <- Banksy::clusterBanksy(spe_joint, use_agf = use_agf, lambda = l, seed = 1000, resolution = seq(0.5, 0.9, 0.1))
   spe_list <- lapply(
     paste0("banksy", names(all.cells)),
     \(id) spe_joint[, spe_joint$sample_id == id]
@@ -511,4 +512,26 @@ moran_score_sample <- function(sample_rep, clust, stride, pval = FALSE) {
     I <- moran(clust_bool, lw, length(lw$n), Szero(lw))[1]
     return(unlist(I))
   }
+}
+
+
+export_anndata <- function(all.cells, all.positions, filename = "export.h5ad") {
+  concat <- reduce2(names(all.cells), all.positions, \(acc, id, pos)
+  list(
+    X = rbind(acc[["X"]], all.cells[[id]]),
+    spatial = rbind(acc[["spatial"]], pos),
+    sample = c(acc[["sample"]], rep(id, nrow(pos)))
+  ),
+  .init = list(
+    X = data.frame(),
+    spatial = data.frame(),
+    sample = c()
+  )
+  )
+  to.export <- anndata::AnnData(
+    X = as.matrix(concat[["X"]]),
+    obs = data.frame(sample = concat[["sample"]]),
+    obsm = list(spatial = as.matrix(concat[["spatial"]]))
+  )
+  anndata::write_h5ad(to.export, filename)
 }
