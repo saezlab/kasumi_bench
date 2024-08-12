@@ -43,38 +43,37 @@ repr.ids <- roc.sm <- NULL
 max.auc <- 0
 
 rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+  plan(multisession, workers = 8)
 
-plan(multisession, workers = 9)
+  misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, ws, 20, paste0("DCISct", ws, ".sqm"))
 
-misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 10, ws, 20, paste0("DCISct",ws,".sqm"))
+  plan(multisession, workers = 8)
 
-plan(multisession, workers = 9)
+  param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
+    rename(id = PointNumber, target = Status) %>%
+    filter(target %in% c("progressor", "nonprogressor")) %>%
+    mutate(id = as.character(id), target = as.factor(target)))
 
-param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
-  rename(id = PointNumber, target = Status) %>%
-  filter(target %in% c("progressor", "nonprogressor")) %>%
-  mutate(id = as.character(id), target = as.factor(target)))
+  sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  repr.ids <- sm.repr %>% pull(id)
 
-repr.ids <- sm.repr %>% pull(id)
+  freq.sm <- sm.repr %>%
+    left_join(resp %>% select(PointNumber, Status) %>%
+      mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+    rename(target = Status) %>%
+    mutate(target = as.factor(target)) %>%
+    select(-id)
 
-freq.sm <- sm.repr %>%
-  left_join(resp %>% select(PointNumber, Status) %>%
-    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
-  rename(target = Status) %>%
-  mutate(target = as.factor(target)) %>%
-  select(-id)
+  roc.sm <- classify(freq.sm)
 
-roc.sm <- classify(freq.sm)
+  if (roc.sm$auc > max.auc) {
+    roc.sm <<- roc.sm
+    repr.ids <<- repr.ids
+    max.auc <<- roc.sm$auc
+  }
 
-if(roc.sm$auc > max.auc){
-  roc.sm <<- roc.sm
-  repr.ids <<- repr.ids
-  max.auc <<- roc.sm$auc
-}
-
-roc.sm$auc
+  roc.sm$auc
 })
 
 write_rds(rocs, "rocs/wrocs.dcis.rds")
@@ -137,7 +136,17 @@ csea.dcis <- all.cells.dcis %>%
 
 roc.csea <- classify(csea.dcis)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/dcis.ct.rds")
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, ncol(sm.repr) - 1)
+freq.wc <- wc.repr %>%
+  left_join(resp %>% select(PointNumber, Status) %>%
+    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target)) %>%
+  select(-id)
+
+roc.wc <- classify(freq.wc)
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/dcis.ct.rds")
 
 # CODEX ----
 
@@ -183,37 +192,35 @@ repr.ids <- roc.sm <- NULL
 max.auc <- 0
 
 rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+  # 10 neighbors as in publication, 200px = 75um window
+  plan(multisession, workers = 8)
+  misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, ws, 20, paste0("CTCLct", ws, ".sqm"))
 
-# 10 neighbors as in publication, 200px = 75um window
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, ws, 20, paste0("CTCLct",ws,".sqm"))
+  plan(multisession, workers = 8)
+  param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
+    rename(id = Spots, target = Groups) %>%
+    mutate(id = as.character(id), target = as.factor(make.names(target))))
 
-plan(multisession, workers = 9)
-param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
-  rename(id = Spots, target = Groups) %>%
-  mutate(id = as.character(id), target = as.factor(make.names(target))))
+  sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
+  repr.ids <- sm.repr %>% pull(id)
 
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  freq.sm <- sm.repr %>%
+    left_join(outcome %>%
+      mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+    rename(target = Groups) %>%
+    mutate(target = as.factor(make.names(target))) %>%
+    select(-id, -Patients)
 
-repr.ids <- sm.repr %>% pull(id)
+  roc.sm <- classify(freq.sm)
 
-freq.sm <- sm.repr %>%
-  left_join(outcome %>%
-    mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
-  rename(target = Groups) %>%
-  mutate(target = as.factor(make.names(target))) %>%
-  select(-id, -Patients)
+  if (roc.sm$auc > max.auc) {
+    roc.sm <<- roc.sm
+    repr.ids <<- repr.ids
+    max.auc <<- roc.sm$auc
+  }
 
-roc.sm <- classify(freq.sm)
-
-if(roc.sm$auc > max.auc){
-  roc.sm <<- roc.sm
-  repr.ids <<- repr.ids
-  max.auc <<- roc.sm$auc
-}
-
-roc.sm$auc
+  roc.sm$auc
 })
 
 write_rds(rocs, "rocs/wrocs.ctcl.rds")
@@ -279,7 +286,20 @@ csea.lymph <- all.cells.lymph %>%
 
 roc.csea <- classify(csea.lymph)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea), "rocs/ctcl.ct.rds")
+
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, ncol(sm.repr) - 1)
+freq.wc <- wc.repr %>%
+  left_join(outcome %>%
+    mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  filter(id %in% repr.ids) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id, -Patients)
+
+roc.wc <- classify(freq.wc)
+
+
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/ctcl.ct.rds")
 
 # IMC ----
 
@@ -338,35 +358,34 @@ repr.ids <- roc.sm <- NULL
 max.auc <- 0
 
 rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
+  plan(multisession, workers = 8)
+  misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, ws, 20, paste0("BCct", ws, ".sqm"))
 
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 10, ws, 20, paste0("BCct",ws,".sqm"))
 
+  plan(multisession, workers = 8)
+  param.opt <- optimal_smclust(misty.results, resp %>%
+    rename(id = core, target = response) %>%
+    mutate(id = as.character(id), target = as.factor(make.names(target))))
 
-plan(multisession, workers = 9)
-param.opt <- optimal_smclust(misty.results, resp %>%
-  rename(id = core, target = response) %>%
-  mutate(id = as.character(id), target = as.factor(make.names(target))))
+  sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
 
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  repr.ids <- sm.repr %>% pull(id)
 
-repr.ids <- sm.repr %>% pull(id)
+  freq.sm <- sm.repr %>%
+    left_join(resp, by = c("id" = "core")) %>%
+    rename(target = response) %>%
+    mutate(target = as.factor(make.names(target))) %>%
+    select(-id)
 
-freq.sm <- sm.repr %>%
-  left_join(resp, by = c("id" = "core")) %>%
-  rename(target = response) %>%
-  mutate(target = as.factor(make.names(target))) %>%
-  select(-id)
+  roc.sm <- classify(freq.sm)
 
-roc.sm <- classify(freq.sm)
+  if (roc.sm$auc > max.auc) {
+    roc.sm <<- roc.sm
+    repr.ids <<- repr.ids
+    max.auc <<- roc.sm$auc
+  }
 
-if(roc.sm$auc > max.auc){
-  roc.sm <<- roc.sm
-  repr.ids <<- repr.ids
-  max.auc <<- roc.sm$auc
-}
-
-roc.sm$auc
+  roc.sm$auc
 })
 
 write_rds(rocs, "rocs/wrocs.bc.rds")
@@ -429,4 +448,15 @@ csea.bc <- all.cells.bc %>%
 
 roc.csea <- classify(csea.bc)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea=roc.csea), "rocs/bc.ct.rds")
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, 9)
+
+freq.wc <- wc.repr %>%
+  filter(id %in% repr.ids) %>%
+  left_join(resp, by = c("id" = "core")) %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id)
+
+roc.wc <- classify(freq.wc)
+
+write_rds(list(sm = test$sm, cn = test$cn, fr = test$fr, pa = test$pa, csea = test$csea, wc = roc.wc), "rocs/bc.ct.rds")

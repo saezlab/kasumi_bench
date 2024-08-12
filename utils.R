@@ -1,4 +1,5 @@
 library(mistyR) # requires >= 1.99.4
+library(kasumi)
 library(future)
 library(tidyverse)
 library(furrr)
@@ -17,6 +18,7 @@ library(cowplot)
 library(extraDistr)
 library(ggrepel)
 library(spdep)
+library(tictoc)
 # library(Banksy)
 # library(SpatialExperiment)
 # library(anndata)
@@ -217,6 +219,9 @@ banksy_labels <- function(all.cells, all.positions, k, l) {
 
 sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
                      family = "constant") {
+  tic()
+  tic.clearlog()
+  write_lines(db.file, "tictoclog.txt", append=TRUE)
   if (file.exists(paste0(str_remove(db.file, ".sqm"), ".rds"))) {
     misty.results <- read_rds(paste0(str_remove(db.file, ".sqm"), ".rds"))
   } else {
@@ -227,16 +232,19 @@ sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
             family = family, cached = TRUE,
             prefix = ifelse(family == "constant", "p.", "")
           )
-
-        folders <- run_sliding_misty(misty.views, all.positions[[i]], window,
+        tic(quiet = TRUE)
+        folders <- run_kasumi(misty.views, all.positions[[i]], window,
           sample.id = paste0("sample", names(all.cells)[i]),
           results.db = db.file,
           bypass.intra = (family == "constant"),
           cv.strict = (family != "constant"),
           minu = minu
         )
+        toc(log = TRUE)
       })
-
+    write_lines(unlist(tic.log(format = TRUE)), "tictoclog.txt", append = TRUE)
+    toc()
+    
     misty.results <- collect_results(db.file)
     write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
   }
@@ -255,13 +263,16 @@ misty_train <- function(all.cells, all.positions, l, db.file, family = "constant
             prefix = ifelse(family == "constant", "p.", "")
           ) %>%
           select_markers("intraview", where(~ sd(.) != 0))
-
+        
         run_misty(misty.views,
           sample.id = paste0("sample", names(all.cells)[i]),
           results.db = db.file,
           bypass.intra = (family == "constant")
         )
+        
       })
+    
+    write_lines(unlist(tic.log(format = TRUE)), "tictoclog.txt", append = TRUE)
 
     misty.results <- collect_results(db.file)
     write_rds(misty.results, paste0(str_remove(db.file, ".sqm"), ".rds"), "gz")
@@ -535,3 +546,64 @@ export_anndata <- function(all.cells, all.positions, filename = "export.h5ad") {
   )
   anndata::write_h5ad(to.export, filename)
 }
+
+
+bin_count_cluster <- function(all.expr, all.positions, window, overlap, k){
+  all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
+    expr <- all.expr[[i]]
+    positions <- all.positions[[i]]
+    
+    x <- tibble::tibble(
+      xl = seq(
+        min(positions[, 1]),
+        max(positions[, 1]),
+        window - window * overlap / 100
+      ),
+      xu = xl + window
+    ) %>%
+      dplyr::filter(xl < max(positions[, 1])) %>%
+      dplyr::mutate(xu = pmin(xu, max(positions[, 1]))) %>%
+      round(2)
+    
+    y <- tibble::tibble(
+      yl = seq(
+        min(positions[, 2]),
+        max(positions[, 2]),
+        window - window * overlap / 100
+      ),
+      yu = yl + window
+    ) %>%
+      dplyr::filter(yl < max(positions[, 2])) %>%
+      dplyr::mutate(yu = pmin(yu, max(positions[, 2]))) %>%
+      round(2)
+    
+    tiles <- tidyr::expand_grid(x, y)
+    
+    tiles %>%
+      pmap_dfr(\(xl, xu, yl, yu){
+        selected.rows <- which(
+          positions[, 1] >= xl & positions[, 1] <= xu &
+            positions[, 2] >= yl & positions[, 2] <= yu
+        )
+        
+        expr %>%
+          slice(selected.rows) %>%
+          colSums()
+        
+        expr / sum(expr)
+      }) %>%
+      add_column(id = names(all.expr)[i])
+  })
+  
+  clusters <- kmeans_ondist(all.windows %>% select(-id), k)
+  
+  cbind(cluster = clusters, id = all.windows %>% pull(id)) %>%
+    as_tibble() %>%
+    group_by(id, cluster) %>%
+    tally() %>%
+    ungroup() %>%
+    pivot_wider(names_from = "cluster", values_from = "n")  %>%
+    replace(is.na(.), 0)
+}
+
+

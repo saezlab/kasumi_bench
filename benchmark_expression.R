@@ -42,10 +42,10 @@ repr.ids <- roc.sm.dcis <- NULL
 max.auc <- 0
 
 rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
-  plan(multisession, workers = 9)
+  plan(multisession, workers = 8)
   misty.results <- sm_train(all.cells.dcis, all.positions.dcis, 100, ws, 20, paste0("DCISexpr", ws, ".sqm"), "gaussian")
 
-  plan(multisession, workers = 9)
+  plan(multisession, workers = 8)
   param.opt <- optimal_smclust(misty.results, resp %>% select(PointNumber, Status) %>%
     rename(id = PointNumber, target = Status) %>%
     filter(target %in% c("progressor", "nonprogressor")) %>%
@@ -162,14 +162,40 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(target)) %>%
   classify()
 
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, ncol(sm.repr) - 1)
+
+freq.wc <- wc.repr %>%
+  left_join(resp %>% select(PointNumber, Status) %>%
+    mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
+  rename(target = Status) %>%
+  mutate(target = as.factor(target)) %>%
+  select(-id)
+
+roc.wc <- classify(freq.wc)
+
+utag.rocs <- seq(0.5, 0.9, 0.1) %>% map(\(res){
+  read_csv(paste0("utag/dcis_", res, ".csv")) %>%
+    left_join(
+      resp %>%
+        select(PointNumber, Status),
+      by = join_by(sample == PointNumber)
+    ) %>%
+    select(-sample) %>%
+    rename(target = Status) %>%
+    mutate(target = as.factor(target)) %>%
+    classify()
+})
+
+roc.utag <- utag.rocs[[which.max(utag.rocs %>% map_dbl(~ .x$auc))]]
+
 write_rds(
   list(
-    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
-    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+    banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3,
+    wc = roc.wc, utag = roc.utag
   ),
   "rocs/dcis.expr.alts.rds"
 )
-
 
 # CODEX ----
 
@@ -206,10 +232,10 @@ all.positions.lymph <- spots %>% map(\(id){
 ## SM CTCL ----
 
 # 10 neighbors as in publication, 400px = 150um window
-plan(multisession, workers = 9)
+plan(multisession, workers = 8)
 misty.results <- sm_train(all.cells.lymph, all.positions.lymph, 100, 400, 20, "CTCLexpr400.sqm", "gaussian")
 
-plan(multisession, workers = 9)
+plan(multisession, workers = 8)
 param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   rename(id = Spots, target = Groups) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
@@ -310,13 +336,39 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(make.names(target))) %>%
   classify()
 
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, ncol(sm.repr) - 1)
+freq.wc <- wc.repr %>%
+  left_join(outcome %>%
+    mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
+  rename(target = Groups) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id, -Patients)
+
+roc.wc <- classify(freq.wc)
+
+utag.rocs <- seq(0.5, 0.9, 0.1) %>% map(\(res){
+  read_csv(paste0("utag/lymph_", res, ".csv")) %>%
+    left_join(
+      outcome,
+      by = join_by(sample == Spots)
+    ) %>%
+    select(-Patients) %>%
+    rename(target = Groups) %>%
+    mutate(target = as.factor(make.names(target))) %>%
+    classify()
+})
+
+roc.utag <- utag.rocs[[which.max(utag.rocs %>% map_dbl(~ .x$auc))]]
+
 write_rds(
   list(
-    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
-    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+    banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3,
+    wc = roc.wc, utag = roc.utag
   ),
   "rocs/ctcl.expr.alts.rds"
 )
+
 
 
 # IMC ----
@@ -390,19 +442,22 @@ all.cells.bc <- all.objs %>% map(~ .x[["expr"]])
 names(all.cells.bc) <- cores
 all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
 
-## SM BC ----
-plan(multisession, workers = 9)
-misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 200, 20, "BCexpr200.sqm", "gaussian")
-
 resp <- bmeta %>%
   filter(core %in% cores) %>%
   select(core, response)
-plan(multisession, workers = 9)
+
+## SM BC ----
+plan(multisession, workers = 8)
+misty.results <- sm_train(all.cells.bc, all.positions.bc, 50, 200, 20, "BCexpr200.sqm", "gaussian")
+
+
+plan(multisession, workers = 8)
 param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
 
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+# sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+sm.repr <- sm_labels(misty.results, cuts = 0.3, res = 0.8)
 
 freq.sm <- sm.repr %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -490,10 +545,34 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(make.names(target))) %>%
   classify()
 
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, ncol(sm.repr) - 1)
+
+freq.wc <- wc.repr %>%
+  left_join(resp, by = c("id" = "core")) %>%
+  rename(target = response) %>%
+  mutate(target = as.factor(make.names(target))) %>%
+  select(-id)
+
+roc.wc <- classify(freq.wc)
+
+utag.rocs <- seq(0.5, 0.9, 0.1) %>% map(\(res){
+  read_csv(paste0("utag/bc_", res, ".csv")) %>%
+    left_join(
+      resp,
+      by = join_by(sample == core)
+    ) %>%
+    rename(target = response) %>%
+    mutate(target = as.factor(make.names(target))) %>%
+    classify()
+})
+
+roc.utag <- utag.rocs[[which.max(utag.rocs %>% map_dbl(~ .x$auc))]]
+
 write_rds(
   list(
-    banksy.ct = test$banksy.ct, banksy.niche = test$banksy.niche,
-    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3
+    banksy.ct = roc.banksy.ct, banksy.niche = roc.banksy.niche,
+    cc.l1 = roc.cc.l1, cc.l3 = roc.cc.l3,
+    wc = roc.wc, utag = roc.utag
   ),
   "rocs/bc.expr.alts.rds"
 )

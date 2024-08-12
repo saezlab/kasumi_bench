@@ -320,4 +320,10 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, wid
 ggsave("kasumi_sees_tiles_expr.pdf", width = 8, height = 6)
 
 
+comp <- read_csv("comp.csv") %>% add_column(type = c(rep("Cell type",117), rep("Marker",117))) %>% mutate(Features = as.factor(Features))
 
+ggplot(comp, aes(x = Cells, y = `t(sec)`, color = Features)) + 
+  geom_point() + scale_color_brewer(palette = "Set1") + 
+  facet_wrap(~type+Features) + theme_classic()
+
+ggsave("complexity.pdf")
