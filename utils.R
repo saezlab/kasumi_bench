@@ -548,7 +548,7 @@ export_anndata <- function(all.cells, all.positions, filename = "export.h5ad") {
 }
 
 
-bin_count_cluster <- function(all.expr, all.positions, window, overlap, k){
+bin_count_cluster <- function(all.expr, all.positions, window, overlap, k, freq = TRUE){
   all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
     expr <- all.expr[[i]]
     positions <- all.positions[[i]]
@@ -586,24 +586,29 @@ bin_count_cluster <- function(all.expr, all.positions, window, overlap, k){
             positions[, 2] >= yl & positions[, 2] <= yu
         )
         
-        expr %>%
+        c(expr %>%
           slice(selected.rows) %>%
-          colSums()
-        
-        expr / sum(expr)
+          colSums(), x = (xu+xl)/2, y = (yu+yl)/2)
       }) %>%
       add_column(id = names(all.expr)[i])
   })
   
-  clusters <- kmeans_ondist(all.windows %>% select(-id), k)
+  clusters <- kmeans_ondist(all.windows %>% select(-id,x,y), k)
   
-  cbind(cluster = clusters, id = all.windows %>% pull(id)) %>%
-    as_tibble() %>%
+  wc.repr <- cbind(cluster = clusters, all.windows %>% select(id,x,y)) %>%
+    as_tibble()
+  
+  if(!freq) return(wc.repr)
+  
+  totals <- wc.repr %>% select(-c(x,y)) %>%
     group_by(id, cluster) %>%
     tally() %>%
     ungroup() %>%
     pivot_wider(names_from = "cluster", values_from = "n")  %>%
     replace(is.na(.), 0)
+  
+  t(apply(totals %>% select(-id), 1, \(x) x/sum(x))) %>% as_tibble() %>% add_column(id = totals$id)
+  
 }
 
 

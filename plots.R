@@ -5,6 +5,7 @@ ct <- read_rds("rocs/dcis.ct.rds")
 expr <- read_rds("rocs/dcis.expr.rds")
 ws <- read_rds("rocs/dcis.ws.rds")
 expr.base  <- read_rds("rocs/dcis.expr.base.rds")
+expr.alts <- read_rds("rocs/dcis.expr.alts.rds")
 
 ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
@@ -14,7 +15,8 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.mibi.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr,  base = expr.base), 
+ggroc(llist(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base, 
+            wc = expr.alts$wc, banksy = expr.alts$banksy.ct, cc = expr.alts$cc.l1, utag = expr.alts$utag), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -30,6 +32,7 @@ ct <- read_rds("rocs/ctcl.ct.rds")
 expr <- read_rds("rocs/ctcl.expr.rds")
 ws <- read_rds("rocs/ctcl.ws.rds")
 expr.base  <- read_rds("rocs/ctcl.expr.base.rds")
+expr.alts <- read_rds("rocs/ctcl.expr.alts.rds")
 
 lymph <- read_csv("data/LymphomaCODEX/single_cells.csv")
 
@@ -51,7 +54,8 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.codex.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base), 
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base, 
+           wc = expr.alts$wc, banksy = expr.alts$banksy.niche, cc = expr.alts$cc.l1, utag = expr.alts$utag), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -147,6 +151,7 @@ ct <- read_rds("rocs/bc.ct.rds")
 expr <- read_rds("rocs/bc.expr.rds")
 ws <- read_rds("rocs/bc.ws.rds")
 expr.base  <- read_rds("rocs/bc.expr.base.rds")
+expr.alts <- read_rds("rocs/bc.expr.alts.rds")
 
 bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
 with_seed(
@@ -173,7 +178,8 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 
 ggsave("roc.imc.pdf", width = 4, height = 3)
 
-ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base), 
+ggroc(list(sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base, 
+           wc = expr.alts$wc, banksy = expr.alts$banksy.ct, cc = expr.alts$cc.l1, utag = expr.alts$utag), 
       legacy.axes = TRUE, linewidth = pi/10) +
   geom_abline(intercept = 0, slope = 1, color = "gray30", linetype = "dotted", linewidth = 2/3) +
   scale_color_brewer(palette = "Set1") +
@@ -269,6 +275,23 @@ ggplot(test, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 
 
 ggsave("ct_distro.pdf", width=8, height=6)
 
+
+all.lymph.g1 <- lymph %>% filter(Spots %in% (outcome %>% filter(Groups == 1) %>% pull(Spots))) %>% select(Spots,ClusterName,X,Y)
+ggplot(all.lymph.g1, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
+  scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("ct_distro_g1_lymph.pdf", width = 16, height = 12)
+
+all.lymph.g2 <- lymph %>% filter(Spots %in% (outcome %>% filter(Groups == 2) %>% pull(Spots))) %>% select(Spots,ClusterName,X,Y)
+ggplot(all.lymph.g2, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
+  scale_color_manual(values=append(pals::cols25(n=20),values = "#000000", after = 6)) + coord_equal() + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("ct_distro_g2_lymph.pdf", width = 16, height = 12)
+
+
+
 misty.results <- read_rds("CTCLct400.rds")
 sm.repr <- sm_repr(misty.results, cuts = 0.4, res = 0.9)
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
@@ -294,8 +317,48 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, wid
   scale_fill_manual(values=as.vector(pals::cols25(n=15))) + 
   coord_equal()  + theme_classic() + theme(legend.position = "bottom")
 
- ggsave("kasumi_sees_tiles.pdf", width = 8, height = 6)
+ggsave("kasumi_sees_tiles.pdf", width = 8, height = 6)
 
+
+ids <- outcome %>% filter(Groups == 1) %>% pull(Spots)
+repr.map <- as.character(ids) %>% map_int(~which(repr.ids == .x))
+
+#color scheme inconsistency
+orig <- pals::cols25(n=13)
+plus <- pals::cols25(n=16)
+ext <- append(append(orig, plus[c(14,15)], after = 6), plus[16], after = 12) 
+
+all.lymph.g1 <- repr.map %>% reduce(~rbind(.x, sm.repr[[.y]]), .init = tibble())
+clusters <- all.lymph.g1 %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- all.lymph.g1 %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>%
+  filter(cluster %in% persistent) %>% 
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = ids))
+
+ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_g1_lymph.pdf", width = 16, height = 12)
+
+
+ids <- outcome %>% filter(Groups == 2) %>% pull(Spots)
+repr.map <- as.character(ids) %>% map_int(~which(repr.ids == .x))
+
+all.lymph.g2 <- repr.map %>% reduce(~rbind(.x, sm.repr[[.y]]), .init = tibble())
+clusters <- all.lymph.g2 %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- all.lymph.g2 %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>%
+  filter(cluster %in% persistent) %>% 
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = ids))
+
+ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_g2_lymph.pdf", width = 16, height = 12)
  
  
 misty.results <- read_rds("BCexpr200.rds")
@@ -320,6 +383,8 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, wid
 ggsave("kasumi_sees_tiles_expr.pdf", width = 8, height = 6)
 
 
+# Complexity ----
+
 comp <- read_csv("comp.csv") %>% add_column(type = c(rep("Cell type",117), rep("Marker",117))) %>% mutate(Features = as.factor(Features))
 
 ggplot(comp, aes(x = Cells, y = `t(sec)`, color = Features)) + 
@@ -327,3 +392,17 @@ ggplot(comp, aes(x = Cells, y = `t(sec)`, color = Features)) +
   facet_wrap(~type+Features) + theme_classic()
 
 ggsave("complexity.pdf")
+
+# ARI ----
+
+dcis.ct <- read_rds("ari/dcis.ct.rds") %>% add_column(data = "DCIS")
+ctcl.ct <- read_rds("ari/ctcl.ct.rds") %>% add_column(data = "CTCL")
+bc.ct <- read_rds("ari/bc.ct.rds") %>% add_column(data = "BC")
+
+ggplot(rbind(dcis.ct,ctcl.ct,bc.ct), aes(x = data, y = ARI, fill = data)) + geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  scale_fill_brewer(palette = "Set1") + theme_classic()
+
+ggplot(rbind(dcis.ct,ctcl.ct,bc.ct), aes(x = data, y = ARI.p, fill = data)) + geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), outlier.shape = NA) + 
+  scale_fill_brewer(palette = "Set1") + theme_classic()
+
+

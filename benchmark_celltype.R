@@ -136,7 +136,7 @@ csea.dcis <- all.cells.dcis %>%
 
 roc.csea <- classify(csea.dcis)
 
-wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, ncol(sm.repr) - 1)
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, 33)
 freq.wc <- wc.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
@@ -147,6 +147,41 @@ freq.wc <- wc.repr %>%
 roc.wc <- classify(freq.wc)
 
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/dcis.ct.rds")
+
+## ARI ----
+
+misty.results <- read_rds("DCISct200.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.9, res = 0.6)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, 33, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/dcis.ct.rds")
+
 
 # CODEX ----
 
@@ -298,8 +333,41 @@ freq.wc <- wc.repr %>%
 
 roc.wc <- classify(freq.wc)
 
-
 write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/ctcl.ct.rds")
+
+## ARI ----
+
+misty.results <- read_rds("CTCLct400.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.4, res = 0.9)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, 16, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/ctcl.ct.rds")
 
 # IMC ----
 
@@ -459,4 +527,38 @@ freq.wc <- wc.repr %>%
 
 roc.wc <- classify(freq.wc)
 
-write_rds(list(sm = test$sm, cn = test$cn, fr = test$fr, pa = test$pa, csea = test$csea, wc = roc.wc), "rocs/bc.ct.rds")
+write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/bc.ct.rds")
+
+## ARI ----
+
+misty.results <- read_rds("BCct200.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.3, res = 0.8)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, 9, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/bc.ct.rds")
