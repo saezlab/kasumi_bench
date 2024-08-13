@@ -136,7 +136,7 @@ csea.dcis <- all.cells.dcis %>%
 
 roc.csea <- classify(csea.dcis)
 
-wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, 33)
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 20, 50, 33)
 freq.wc <- wc.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
     mutate(PointNumber = as.character(PointNumber)), by = c("id" = "PointNumber")) %>%
@@ -169,7 +169,7 @@ clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
 
 all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
 
-wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, 33, freq=FALSE)
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 20, 50, 33, freq=FALSE)
 
 sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
 sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
@@ -322,7 +322,7 @@ csea.lymph <- all.cells.lymph %>%
 roc.csea <- classify(csea.lymph)
 
 
-wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, ncol(sm.repr) - 1)
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 20, 50, 16)
 freq.wc <- wc.repr %>%
   left_join(outcome %>%
     mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
@@ -356,7 +356,7 @@ clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
 
 all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
 
-wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, 16, freq=FALSE)
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 20, 50, 16, freq=FALSE)
 
 sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
 sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
@@ -516,7 +516,7 @@ csea.bc <- all.cells.bc %>%
 
 roc.csea <- classify(csea.bc)
 
-wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, 9)
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 20, 50, 9)
 
 freq.wc <- wc.repr %>%
   filter(id %in% repr.ids) %>%
@@ -527,7 +527,8 @@ freq.wc <- wc.repr %>%
 
 roc.wc <- classify(freq.wc)
 
-write_rds(list(sm = roc.sm, cn = roc.cn, fr = roc.fr, pa = roc.pa, csea = roc.csea, wc = roc.wc), "rocs/bc.ct.rds")
+
+write_rds(list(sm = test$sm, cn = test$cn, fr = test$fr, pa = test$pa, csea = test$csea, wc = roc.wc), "rocs/bc.ct.rds")
 
 ## ARI ----
 
@@ -550,7 +551,7 @@ clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
 
 all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
 
-wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, 9, freq=FALSE)
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 20, 50, 9, freq=FALSE)
 
 sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
 sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)

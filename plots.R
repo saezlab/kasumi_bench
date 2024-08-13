@@ -267,7 +267,42 @@ ggsave("sensitivity.pdf")
 
 
 
-# Kasumi sees ----
+# Kasumi sees CTCL ct ----
+
+lymph <- read_csv("data/LymphomaCODEX/single_cells.csv")
+spots <- lymph %>%
+  filter(Groups %in% c(1, 2)) %>%
+  pull(Spots) %>%
+  unique()
+outcome <- lymph %>%
+  filter(Groups %in% c(1, 2)) %>%
+  group_by(Spots, Patients) %>%
+  summarize(Groups = Groups[1], .groups = "drop")
+
+cts <- lymph %>%
+  pull(ClusterName) %>%
+  unique()
+
+all.cells.lymph <- spots %>% map(\(id){
+  lymph %>%
+    filter(Spots == id) %>%
+    pull(ClusterName) %>%
+    map(~ .x == cts) %>%
+    rlist::list.rbind() %>%
+    `colnames<-`(make.names(cts)) %>%
+    as_tibble(.name_repair = "unique")
+})
+
+names(all.cells.lymph) <- spots
+
+all.positions.lymph <- spots %>% map(\(id){
+  lymph %>%
+    filter(Spots == id) %>%
+    select(X, Y) %>%
+    `colnames<-`(c("x", "y"))
+})
+
+
 test <- lymph %>% filter(Spots %in% c(2,39,57,22)) %>% select(Spots,ClusterName,X,Y) %>% mutate(Spots = factor(Spots, levels = c(2,39,57,22)))
 ggplot(test, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
   scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + 
@@ -278,14 +313,14 @@ ggsave("ct_distro.pdf", width=8, height=6)
 
 all.lymph.g1 <- lymph %>% filter(Spots %in% (outcome %>% filter(Groups == 1) %>% pull(Spots))) %>% select(Spots,ClusterName,X,Y)
 ggplot(all.lymph.g1, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
-  scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + 
+  scale_color_manual(values=as.vector(pals::cols25(n=20))) + coord_equal() + labs(color = "Cell type") +
   theme_classic() + theme(legend.position = "bottom")
 
 ggsave("ct_distro_g1_lymph.pdf", width = 16, height = 12)
 
 all.lymph.g2 <- lymph %>% filter(Spots %in% (outcome %>% filter(Groups == 2) %>% pull(Spots))) %>% select(Spots,ClusterName,X,Y)
 ggplot(all.lymph.g2, aes(x = X, y=Y, color = ClusterName)) + geom_point(size=1, alpha = 0.7) + facet_wrap(vars(Spots)) + 
-  scale_color_manual(values=append(pals::cols25(n=20),values = "#000000", after = 6)) + coord_equal() + 
+  scale_color_manual(values=append(pals::cols25(n=20),values = "#000000", after = 6)) + coord_equal() + labs(color = "Cell type") +
   theme_classic() + theme(legend.position = "bottom")
 
 ggsave("ct_distro_g2_lymph.pdf", width = 16, height = 12)
@@ -338,9 +373,21 @@ kasumirep <- all.lymph.g1 %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>
 ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
   facet_wrap(id~.) +
   scale_fill_manual(values=ext) + 
-  coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Kasumi\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
 
 ggsave("kasumi_sees_g1_lymph.pdf", width = 16, height = 12)
+
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 20, 50, 16, freq=FALSE)
+
+ggplot(wc.repr %>% filter(id %in% ids) %>% mutate(cluster = as.factor(cluster), id = as.integer(id)), aes(x=x, y=y, fill = cluster)) + 
+  geom_tile(height = 200, width = 200, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Window\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("windows_g1_lymph.pdf", width = 16, height = 12)
 
 
 ids <- outcome %>% filter(Groups == 2) %>% pull(Spots)
@@ -356,11 +403,97 @@ kasumirep <- all.lymph.g2 %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>
 ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 200, width = 200, alpha = 0.7) + 
   facet_wrap(id~.) +
   scale_fill_manual(values=ext) + 
-  coord_equal()  + theme_classic() + theme(legend.position = "bottom")
+  coord_equal()  +  labs(x = "X", y = "Y", fill = "Kasumi\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
 
 ggsave("kasumi_sees_g2_lymph.pdf", width = 16, height = 12)
  
+
+ggplot(wc.repr %>% filter(id %in% ids) %>% mutate(cluster = as.factor(cluster), id = as.integer(id)), aes(x=x, y=y, fill = cluster)) + 
+  geom_tile(height = 200, width = 200, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Window\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("windows_g2_lymph.pdf", width = 16, height = 12)
+
  
+# Kasumi sees BC expr ----
+
+bmeta <- read_csv("data/BCIMC/Basel_PatientMetadata.csv")
+
+panel <- read_csv("data/BCIMC/Basel_Zuri_StainingPanel.csv") %>%
+  select(Target, FullStack) %>%
+  filter(complete.cases(.)) %>%
+  distinct()
+
+wi <- read_csv("data/BCIMC/Basel_Zuri_WholeImage.csv")
+
+with_seed(
+  1,
+  cores <- bmeta %>%
+    filter(
+      diseasestatus == "tumor",
+      response %in% c("Sensitive", "Resistant"),
+      clinical_type == "HR+HER2-", Subtype == "PR+ER+"
+    ) %>%
+    group_by(response) %>%
+    slice_sample(n = 15) %>%
+    arrange(core) %>%
+    pull(core)
+)
+
+
+obj.ids <- bmeta %>%
+  filter(core %in% cores) %>%
+  select(core, FileName_FullStack) %>%
+  mutate(fp = paste0(
+    str_extract(FileName_FullStack, "(.+?_){7}"), "[0-9]+_",
+    str_extract(core, "X.+")
+  )) %>%
+  arrange(core) %>%
+  pull(fp) %>%
+  map_int(~ (wi %>% pluck("ImageNumber", str_which(wi %>% pull(FileName_FullStack), .x))))
+
+
+all.objs <- obj.ids %>% map(\(id){
+  path <- paste0("data/BCIMC/single_images/ ", id, ".csv")
+  data <- read_csv(path, show_col_types = FALSE)
+  
+  intensities <- data %>% select(contains("Intensity_MeanIntensity_FullStack"))
+  
+  markers <- tibble(channel = colnames(intensities) %>% str_extract("[0-9]+") %>% as.numeric()) %>%
+    left_join(panel, by = c("channel" = "FullStack"))
+  
+  to.remove <- which(markers$channel < 9 | is.na(markers$Target) |
+                       markers$channel > 47 | markers$channel %in% c(26, 32, 36, 42))
+  
+  pos <- data %>% select(Location_Center_X, Location_Center_Y)
+  
+  pos.complete <- which(complete.cases(pos))
+  
+  expr <- intensities %>%
+    select(-all_of(to.remove)) %>%
+    slice(pos.complete)
+  colnames(expr) <- markers %>%
+    slice(-to.remove) %>%
+    pull(Target) %>%
+    make.names()
+  pos <- pos %>% slice(pos.complete)
+  
+  list(expr = expr, pos = pos)
+})
+
+all.cells.bc <- all.objs %>% map(~ .x[["expr"]])
+names(all.cells.bc) <- cores
+all.positions.bc <- all.objs %>% map(~ .x[["pos"]])
+
+resp <- bmeta %>%
+  filter(core %in% cores) %>%
+  select(core, response)
+
+
 misty.results <- read_rds("BCexpr200.rds")
 sm.repr <- sm_repr(misty.results, 0.3, 0.8)
 repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
@@ -382,6 +515,83 @@ ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, wid
 
 ggsave("kasumi_sees_tiles_expr.pdf", width = 8, height = 6)
 
+ids <- resp %>% filter(response == "Sensitive") %>% pull(core)
+repr.map <- ids %>% map_int(~which(repr.ids == .x))
+
+ext <- pals::cols25(n=15)
+
+
+all.bc.sens <- repr.map %>% reduce(~rbind(.x, sm.repr[[.y]]), .init = tibble())
+clusters <- all.bc.sens %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- all.bc.sens %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>%
+  filter(cluster %in% persistent) %>% 
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = ids))
+
+ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, width = 100, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Kasumi\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_sens_bc.pdf", width = 16, height = 12)
+
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 20, 50, 15, freq=FALSE)
+
+ggplot(wc.repr %>% filter(id %in% ids) %>% mutate(cluster = as.factor(cluster), id = factor(id, levels=ids)), aes(x=x, y=y, fill = cluster)) + 
+  geom_tile(height = 100, width = 100, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Window\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("windows_sens_bc.pdf", width = 16, height = 12)
+
+
+banksy.single <- banksy_single(all.cells.bc, all.position.bs, 10, 0.2, 0.5)
+
+ggplot(banksy.single %>% filter(id %in% ids) %>% mutate(id = factor(id, levels = ids)), aes(x=x, y=y, color = cluster)) +
+  geom_point(size=1, alpha = 0.7) + facet_wrap(vars(id)) + 
+  scale_color_manual(values=as.vector(pals::cols25(n=10))) + coord_equal() + labs(x = "X", y = "Y", color = "Banksy\nclusters") +
+  theme_classic() + theme(legend.position = "bottom")
+  
+ggsave("banksy_sens_bc.pdf", width = 16, height = 12)
+
+ids <- resp %>% filter(response == "Resistant") %>% pull(core)
+repr.map <- ids[-9] %>% map_int(~which(repr.ids == .x))
+
+all.bc.res <- repr.map %>% reduce(~rbind(.x, sm.repr[[.y]]), .init = tibble())
+clusters <- all.bc.res %>% select(-c(id,x,y)) %>% apply(1,which)
+
+kasumirep <- all.bc.res %>% select(c(id,x,y)) %>% cbind(cluster = clusters) %>%
+  filter(cluster %in% persistent) %>% 
+  mutate(cluster = as.factor(cluster), id = factor(id, levels = ids))
+
+ggplot(kasumirep, aes(x = x, y=y, fill = cluster)) + geom_tile(height = 100, width = 100, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Kasumi\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("kasumi_sees_res_bc.pdf", width = 16, height = 12)
+
+ids <- ids[-4]
+ggplot(wc.repr %>% filter(id %in% ids) %>% mutate(cluster = as.factor(cluster), id = factor(id, levels = ids)), aes(x=x, y=y, fill = cluster)) + 
+  geom_tile(height = 100, width = 100, alpha = 0.7) + 
+  facet_wrap(id~.) +
+  scale_fill_manual(values=ext) + 
+  coord_equal()  + labs(x = "X", y = "Y", fill = "Window\ncluster") + 
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("windows_res_bc.pdf", width = 16, height = 12)
+
+ids <- ids[-8]
+ggplot(banksy.single %>% filter(id %in% ids) %>% mutate(id = factor(id, levels = ids)), aes(x=x, y=y, color = cluster)) +
+  geom_point(size=1, alpha = 0.7) + facet_wrap(vars(id)) + 
+  scale_color_manual(values=as.vector(pals::cols25(n=10))) + coord_equal() + labs(x = "X", y = "Y", color = "Banksy\nclusters") +
+  theme_classic() + theme(legend.position = "bottom")
+
+ggsave("banksy_res_bc.pdf", width = 16, height = 12)
 
 # Complexity ----
 
@@ -399,10 +609,24 @@ dcis.ct <- read_rds("ari/dcis.ct.rds") %>% add_column(data = "DCIS")
 ctcl.ct <- read_rds("ari/ctcl.ct.rds") %>% add_column(data = "CTCL")
 bc.ct <- read_rds("ari/bc.ct.rds") %>% add_column(data = "BC")
 
-ggplot(rbind(dcis.ct,ctcl.ct,bc.ct), aes(x = data, y = ARI, fill = data)) + geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) + 
-  scale_fill_brewer(palette = "Set1") + theme_classic()
+ggplot(rbind(dcis.ct,ctcl.ct,bc.ct) %>% mutate(data = factor(data, levels = c("DCIS", "CTCL", "BC"))), aes(x = data, y = ARI.p, fill = data)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  scale_fill_brewer(palette = "Set1") + labs(x = "", y = "ARI") + 
+  theme_classic() + theme(legend.position = "none")
 
-ggplot(rbind(dcis.ct,ctcl.ct,bc.ct), aes(x = data, y = ARI.p, fill = data)) + geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), outlier.shape = NA) + 
-  scale_fill_brewer(palette = "Set1") + theme_classic()
+ggsave("ari_ct.pdf", width = 6, height = 6)
+
+
+
+dcis.expr <- read_rds("ari/dcis.expr.rds") %>% add_column(data = "DCIS")
+ctcl.expr <- read_rds("ari/ctcl.expr.rds") %>% add_column(data = "CTCL")
+bc.expr <- read_rds("ari/bc.expr.rds") %>% add_column(data = "BC")
+
+ggplot(rbind(dcis.expr,ctcl.expr,bc.expr) %>% mutate(data = factor(data, levels = c("DCIS", "CTCL", "BC"))), aes(x = data, y = ARI.p, fill = data)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  scale_fill_brewer(palette = "Set1") + labs(x = "", y = "ARI") + 
+  theme_classic() + theme(legend.position = "none")
+
+ggsave("ari_expr.pdf", width = 6, height = 6)
 
 

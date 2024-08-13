@@ -217,6 +217,41 @@ banksy_labels <- function(all.cells, all.positions, k, l) {
 }
 
 
+banksy_single <- function(all.cells, all.positions, k, l, res = 0.5) {
+  spe_list <- map2(
+    names(all.cells), all.positions,
+    \(id, pos) SpatialExperiment::SpatialExperiment(
+      assay = list(counts = t(all.cells[[id]])),
+      spatialCoords = as.matrix(pos),
+      sample_id = paste0("banksy", id)
+    )
+  )
+  
+  spe_list <- map(spe_list, \(spe) Banksy::computeBanksy(spe,
+                                                         assay_name = "counts",
+                                                         compute_agf = TRUE, k_geom = k
+  ))
+  spe_joint <- do.call(cbind, spe_list)
+  rm(spe_list)
+  
+  # both cell type and niches
+  # l <- c(0.2,0.8)
+  
+  use_agf <- FALSE
+  spe_joint <- Banksy::runBanksyPCA(spe_joint,
+                                    use_agf = use_agf, lambda = l,
+                                    group = "sample_id", seed = 1000
+  )
+  spe_joint <- Banksy::runBanksyUMAP(spe_joint, use_agf = use_agf, lambda = l, seed = 1000)
+  spe_joint <- Banksy::clusterBanksy(spe_joint, use_agf = use_agf, lambda = l, seed = 1000, resolution = res)
+  
+  
+  to.return  <- cbind(SummarizedExperiment::colData(spe_joint), SpatialExperiment::spatialCoords(spe_joint)) %>% as_tibble()
+  colnames(to.return) <- c("id", "cluster", "x", "y")
+  to.return %>% mutate(id = str_remove(id,"banksy"))
+
+}
+
 sm_train <- function(all.cells, all.positions, l, window, minu, db.file,
                      family = "constant") {
   tic()
@@ -548,7 +583,7 @@ export_anndata <- function(all.cells, all.positions, filename = "export.h5ad") {
 }
 
 
-bin_count_cluster <- function(all.expr, all.positions, window, overlap, k, freq = TRUE){
+bin_count_cluster <- function(all.expr, all.positions, window, minu, overlap, k, freq = TRUE){
   all.windows <- seq_along(all.expr) %>% map_dfr(\(i){
     expr <- all.expr[[i]]
     positions <- all.positions[[i]]
@@ -586,6 +621,8 @@ bin_count_cluster <- function(all.expr, all.positions, window, overlap, k, freq 
             positions[, 2] >= yl & positions[, 2] <= yu
         )
         
+        if(length(selected.rows) < minu) return()
+        
         c(expr %>%
           slice(selected.rows) %>%
           colSums(), x = (xu+xl)/2, y = (yu+yl)/2)
@@ -593,7 +630,7 @@ bin_count_cluster <- function(all.expr, all.positions, window, overlap, k, freq 
       add_column(id = names(all.expr)[i])
   })
   
-  clusters <- kmeans_ondist(all.windows %>% select(-id,x,y), k)
+  clusters <- kmeans_ondist(all.windows %>% select(-c(id,x,y)) %>% apply(1, \(x) x/sum(x)) %>% t(), k)
   
   wc.repr <- cbind(cluster = clusters, all.windows %>% select(id,x,y)) %>%
     as_tibble()

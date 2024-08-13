@@ -162,7 +162,7 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(target)) %>%
   classify()
 
-wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 50, ncol(sm.repr) - 1)
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 20, 50, 4)
 
 freq.wc <- wc.repr %>%
   left_join(resp %>% select(PointNumber, Status) %>%
@@ -196,6 +196,42 @@ write_rds(
   ),
   "rocs/dcis.expr.alts.rds"
 )
+
+## ARI ----
+
+misty.results <- read_rds("DCISexpr200.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.6, res = 0.8)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.dcis, all.positions.dcis, 200, 20, 50, 4, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/dcis.expr.rds")
+
+
 
 # CODEX ----
 
@@ -336,7 +372,7 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(make.names(target))) %>%
   classify()
 
-wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 50, ncol(sm.repr) - 1)
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 20, 50, 12)
 freq.wc <- wc.repr %>%
   left_join(outcome %>%
     mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
@@ -369,6 +405,39 @@ write_rds(
   "rocs/ctcl.expr.alts.rds"
 )
 
+## ARI ----
+
+misty.results <- read_rds("CTCLexpr400.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.3, res = 0.5)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.lymph, all.positions.lymph, 400, 20, 50, 12, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/ctcl.expr.rds")
 
 
 # IMC ----
@@ -489,6 +558,7 @@ write_rds(roc.fr, "rocs/bc.expr.base.rds")
 
 ## Alternatives ----
 
+# may fail if library(SpatialExperiment) not run
 freq.banksy.ct <- banksy_labels(all.cells.bc, all.positions.bc, 10, 0.2)
 
 rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
@@ -497,7 +567,7 @@ rocs.banksy.ct <- freq.banksy.ct %>% map(\(fbc){
       resp,
       by = join_by(id == core)
     ) %>%
-    rename(target = response) %>%
+    dplyr::rename(target = response) %>%
     mutate(target = as.factor(make.names(target)))
 
   classify(freq.banksy)
@@ -545,7 +615,7 @@ roc.cc.l3 <- freq.cc %>%
   mutate(target = as.factor(make.names(target))) %>%
   classify()
 
-wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 50, ncol(sm.repr) - 1)
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 20, 50, 15)
 
 freq.wc <- wc.repr %>%
   left_join(resp, by = c("id" = "core")) %>%
@@ -576,3 +646,37 @@ write_rds(
   ),
   "rocs/bc.expr.alts.rds"
 )
+
+## ARI ----
+
+misty.results <- read_rds("BCexpr200.rds")
+sm.repr <- sm_repr(misty.results, cuts = 0.3, res = 0.8)
+repr.ids <- sm.repr %>% map_chr(~ .x$id[1])
+
+sm.freq <- sm.repr %>%
+  map_dfr(~ .x %>%
+            select(-c(id, x, y)) %>%
+            freq_repr()) %>%
+  select(where(~ (sd(.) > 1e-3) & (sum(. > 0) >= max(5, 0.1 * length(.)))))
+
+persistent <- sm.freq %>% 
+  colnames() %>% str_remove_all("\\.")
+
+
+all.sm <- sm.repr %>% reduce(~rbind(.x, .y), .init = tibble())
+clusters <- all.sm %>% select(-c(id,x,y)) %>% apply(1,which)
+
+all.sm.clusters <- all.sm %>% select(c(id,x,y)) %>% cbind(cluster = clusters)
+
+wc.repr <- bin_count_cluster(all.cells.bc, all.positions.bc, 200, 20, 50, 15, freq=FALSE)
+
+sm.wc <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% mutate(cluster.x = ifelse(cluster.x %in% persistent, cluster.x, 0))
+sm.wc.p <- all.sm.clusters %>% left_join(wc.repr, by = join_by(id,x,y)) %>% filter(cluster.x %in% persistent)
+
+
+aris <- sm.wc %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+aris.p <- sm.wc.p %>% select(-c(x,y)) %>% group_by(id) %>% 
+  summarise(ARI.p = genieclust::adjusted_rand_score(cluster.x, cluster.y, clipped = TRUE))
+
+write_rds(left_join(aris,aris.p, by = "id"), "ari/bc.expr.rds")
