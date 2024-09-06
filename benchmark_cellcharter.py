@@ -21,10 +21,14 @@ def get_argumnets():
 
     # Add a group of arguments for the tool
     tool_group = parser.add_argument_group("Tool parameters", "Parameters for CellCharter")
-    tool_group.add_argument("-s", "--steps", type=int, default=1, help="Number of steps to aggregate neighbors")
-    tool_group.add_argument("-k", "--k_range", nargs=2, type=int, default=(2, 10), help="Range of k values to test")
-    tool_group.add_argument("-m", "--max_runs", type=int, default=10, help="Maximum number of runs for each k")
-    tool_group.add_argument("-a", "--accelerator", default="cpu", help="Accelerator to use for training")
+    tool_group.add_argument("-s", "--steps", type=int, default=1,
+                            help="Number of steps to aggregate neighbors [default:1]")
+    tool_group.add_argument("-k", "--k_range", nargs=2, type=int, default=(2, 15),
+                            help="Range of k values to test [default:2 15]")
+    tool_group.add_argument("-m", "--max_runs", type=int, default=15,
+                            help="Maximum number of runs for each k [default:15]")
+    tool_group.add_argument("-a", "--accelerator", default="cpu",
+                            help="Accelerator to use for training [default:cpu, cuda]")
 
     # Add a group of arguments for the output
     output_group = parser.add_argument_group("Output arguments", "Paths for the output data")
