@@ -16,9 +16,8 @@ ggroc(list.append(list.remove(ct, "pa"), ws.ct = ws$ct), legacy.axes = TRUE, lin
 ggsave("roc.mibi.pdf", width = 4, height = 3)
 
 ggroc(
-  llist(
-    sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base,
-    wc = expr.alts$wc, banksy = expr.alts$banksy.ct, cc = expr.alts$cc.l1, utag = expr.alts$utag
+  list(
+    sm.ct = ct$sm, banksy = expr.alts$banksy.ct, base = expr.base, cc = expr.alts$cc.l1, wc = expr.alts$wc, ws.expr = ws$expr, sm.expr = expr, utag = expr.alts$utag
   ),
   legacy.axes = TRUE, linewidth = pi / 10
 ) +
@@ -60,8 +59,7 @@ ggsave("roc.codex.pdf", width = 4, height = 3)
 
 ggroc(
   list(
-    sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base,
-    wc = expr.alts$wc, banksy = expr.alts$banksy.niche, cc = expr.alts$cc.l1, utag = expr.alts$utag
+    sm.ct = ct$sm, banksy = expr.alts$banksy.ct, base = expr.base, cc = expr.alts$cc.l1, wc = expr.alts$wc, ws.expr = ws$expr, sm.expr = expr, utag = expr.alts$utag
   ),
   legacy.axes = TRUE, linewidth = pi / 10
 ) +
@@ -196,8 +194,7 @@ ggsave("roc.imc.pdf", width = 4, height = 3)
 
 ggroc(
   list(
-    sm.ct = ct$sm, ws.ct = ws$ct, sm.expr = expr, ws.expr = ws$expr, base = expr.base,
-    wc = expr.alts$wc, banksy = expr.alts$banksy.ct, cc = expr.alts$cc.l1, utag = expr.alts$utag
+    sm.ct = ct$sm, banksy = expr.alts$banksy.ct, base = expr.base, cc = expr.alts$cc.l1, wc = expr.alts$wc, ws.expr = ws$expr, sm.expr = expr, utag = expr.alts$utag
   ),
   legacy.axes = TRUE, linewidth = pi / 10
 ) +

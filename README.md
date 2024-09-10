@@ -4,7 +4,8 @@ R scripts used to analyse publicly available data, benchmark Kasumi against base
 
 For package requirements see [utils.R](utils.R). igraph version 1.5.1 is required to reproduce the exact results from the paper. Aternatively, a Dockerfile is provided for convenience.
 
-Requires a development version of mistyR (>= 1.99.10) implementing Kasumi that can be obtained from [jtanevski/mistyR](https://github.com/jtanevski/mistyR).
+Requires a development version of mistyR (>= 1.99.10) that can be obtained from [jtanevski/mistyR](https://github.com/jtanevski/mistyR).
+The Kasumi R package can be obtained from [jtanevski/kasumi](https://github.com/jtanevski/kasumi).
 
 
 To reproduce the analysis of the [DCIS dataset](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8792442/), run the following Python code in the `Image Data/Segmetation_Outlines_and_Labels_Mendeley/` folder in order to generate the required csv files
