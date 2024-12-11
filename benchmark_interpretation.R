@@ -60,6 +60,22 @@ freq.expr <- sm.repr %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
 
+mds.expr <- freq.expr %>% 
+  select(-target) %>% 
+  dist %>%
+  cmdscale(eig=TRUE, k=2)
+mds.expr <- data.frame(MDS1 = mds.expr$points[,1], MDS2 = mds.expr$points[,2], target = freq.expr$target)
+
+gp <- (ggplot(mds.expr, aes(x = MDS1, y = MDS2, color = target)) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  ggtitle("MDS for CTCL samples") +
+  xlab("MDS1") +
+  ylab("MDS2") +
+  scale_color_manual(values = c("#008837", "#7b3294")))
+
+ggsave("CTCLct400_mds.pdf", gp, height = 5, width = 5)
+
 reliance <- model_reliance(freq.expr)
 ggsave("CTCLreliance_interpretation.pdf", last_plot())
 
@@ -164,6 +180,22 @@ freq.sm <- sm.repr %>%
   rename(target = response) %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id)
+
+mds.sm <- freq.sm %>% 
+  select(-target) %>% 
+  dist %>%
+  cmdscale(eig=TRUE, k=2)
+mds.sm <- data.frame(MDS1 = mds.sm$points[,1], MDS2 = mds.sm$points[,2], target = freq.sm$target)
+
+gp <- (ggplot(mds.sm, aes(x = MDS1, y = MDS2, color = target)) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  ggtitle("MDS for BC samples") +
+  xlab("MDS1") +
+  ylab("MDS2") +
+  scale_color_manual(values = c("#008837", "#7b3294")))
+
+ggsave("BCexpr200_mds.pdf", gp, height = 5, width = 5)
 
 freq_all_clusters <- sapply(sm.repr.ext, 
       function(x) x %>%
