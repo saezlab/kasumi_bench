@@ -52,6 +52,7 @@ rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
     mutate(id = as.character(id), target = as.factor(target)))
 
   sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  #sm.repr <- sm_labels(misty.results, cuts = 0.6, res = 0.8)
 
 
   freq.sm <- sm.repr %>%
@@ -277,6 +278,7 @@ param.opt <- optimal_smclust(misty.results, outcome %>% select(-Patients) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
 
 sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+#sm.repr <- sm_labels(misty.results, cuts = 0.3, res = 0.5)
 
 freq.sm <- sm.repr %>%
   left_join(outcome %>% mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
@@ -525,8 +527,8 @@ param.opt <- optimal_smclust(misty.results, resp %>%
   rename(id = core, target = response) %>%
   mutate(id = as.character(id), target = as.factor(make.names(target))))
 
-# sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
-sm.repr <- sm_labels(misty.results, cuts = 0.3, res = 0.8)
+sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+#sm.repr <- sm_labels(misty.results, cuts = 0.3, res = 0.8)
 
 freq.sm <- sm.repr %>%
   left_join(resp, by = c("id" = "core")) %>%

@@ -55,6 +55,7 @@ rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
     mutate(id = as.character(id), target = as.factor(target)))
 
   sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  #sm.repr <- sm_labels(misty.results, cuts = 0.8, res = 0.5)
 
   repr.ids <- sm.repr %>% pull(id)
 
@@ -237,6 +238,7 @@ rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
     mutate(id = as.character(id), target = as.factor(make.names(target))))
 
   sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  #sm.repr <- sm_labels(misty.results, cuts = 0.4, res = 0.9)
 
   repr.ids <- sm.repr %>% pull(id)
 
@@ -436,6 +438,7 @@ rocs <- c(100, 200, 300, 400, 500) %>% map_dbl(\(ws){
     mutate(id = as.character(id), target = as.factor(make.names(target))))
 
   sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+  #sm.repr <- sm_labels(misty.results, cuts = 0.3, res = 0.8)
 
   repr.ids <- sm.repr %>% pull(id)
 

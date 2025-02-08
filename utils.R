@@ -137,7 +137,7 @@ kmeans_ondist <- function(representation, k = 10) {
 cn_train <- function(all.cells, all.positions, k) {
   concat <- seq_along(all.cells) %>% map_dfr(\(i){
     misty.views <- create_initial_view(all.cells[[i]]) %>%
-      add_paraview(all.positions[[i]], k, family = "constant", cache = TRUE)
+      add_paraview(all.positions[[i]], k, family = "constant", cached = TRUE)
     misty.views[[paste0("paraview.", k)]] %>%
       add_column(id = names(all.cells)[i]) %>%
       cbind(all.positions[[i]])
