@@ -2,8 +2,8 @@ source("../utils.R")
 library(readxl)
 
 # Download data ----
-
-download.file("https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-021-26974-6/MediaObjects/41467_2021_26974_MOESM3_ESM.xlsx", "CTCL.xlsx")
+if(!file.exists("CTCL.xlsx"))
+  download.file("https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-021-26974-6/MediaObjects/41467_2021_26974_MOESM3_ESM.xlsx", "CTCL.xlsx")
 lymph <- read_xlsx("CTCL.xlsx", skip=2)
 
 
@@ -51,6 +51,10 @@ kasumi.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 400, 20, "C
 
 
 # Find an optimal parameter combination given a downstream task ----
+
+# You can skip this step and use precalculated values for the next step 
+# sm.repr <- sm_labels(misty.results, cuts = 0.8, res = 0.5)
+
 plan(multisession, workers = 8)
 param.opt <- optimal_smclust(kasumi.results, outcome %>% select(-Patients) %>%
                                  rename(id = Spots, target = Groups) %>%
@@ -58,11 +62,10 @@ param.opt <- optimal_smclust(kasumi.results, outcome %>% select(-Patients) %>%
   
 
 # Generate representation ----
-sm.repr <- sm_labels(misty.results, cuts = param.opt["cut"], res = param.opt["res"])
+sm.repr <- sm_labels(kasumi.results, cuts = param.opt["cut"], res = param.opt["res"])
   
 
 # Classifiction task ----
-repr.ids <- sm.repr %>% pull(id)
   
 freq.sm <- sm.repr %>%
   left_join(outcome %>%
