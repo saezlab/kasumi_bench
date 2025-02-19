@@ -1,6 +1,6 @@
 library(anndata)
 library(uwot)
-source("utils.R")
+source("../utils.R")
 
 plan(multisession, workers = 8)
 options(future.globals.maxSize = 2024^3)
