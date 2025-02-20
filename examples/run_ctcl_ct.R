@@ -52,30 +52,31 @@ kasumi.results <- sm_train(all.cells.lymph, all.positions.lymph, 10, 400, 20, "C
 
 # Find an optimal parameter combination given a downstream task ----
 
-# You can skip this step and use precalculated values for the next step 
-# sm.repr <- sm_labels(misty.results, cuts = 0.8, res = 0.5)
+# You can skip this step and use precalculated values for the next step
+
+# sm.repr <- sm_labels(kasumi.results, cuts = 0.4, res = 0.9)
 
 plan(multisession, workers = 8)
 param.opt <- optimal_smclust(kasumi.results, outcome %>% select(-Patients) %>%
                                  rename(id = Spots, target = Groups) %>%
                                  mutate(id = as.character(id), target = as.factor(make.names(target))))
-  
+
 
 # Generate representation ----
 sm.repr <- sm_labels(kasumi.results, cuts = param.opt["cut"], res = param.opt["res"])
-  
+
 
 # Classifiction task ----
-  
+
 freq.sm <- sm.repr %>%
   left_join(outcome %>%
               mutate(Spots = as.character(Spots)), by = c("id" = "Spots")) %>%
   rename(target = Groups) %>%
   mutate(target = as.factor(make.names(target))) %>%
   select(-id, -Patients)
-  
+
 roc.sm <- classify(freq.sm)
-  
+
 roc.sm$auc
 
 
@@ -89,7 +90,7 @@ sm.repr.ext <- sm_labels(kasumi.results, 0.4, 0.9, freq = FALSE)
 
 kasumi.cluster.23 <- describe_cluster(sm.repr.ext, 23, "CTCLct400.sqm")
 
-plot_improvement_stats(misty.cluster.23, trim = 1)
+plot_improvement_stats(kasumi.cluster.23, trim = 1)
 plot_interaction_heatmap(kasumi.cluster.23, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE)
 plot_interaction_heatmap(kasumi.cluster.23, "paraview.10", trim = 1, cutoff = 0.5, clean = TRUE, correlation = TRUE)
 
