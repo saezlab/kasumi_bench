@@ -743,7 +743,10 @@ comp <- read_csv("comp.csv") %>%
 ggplot(comp, aes(x = Cells, y = `t(sec)`, color = Features)) +
   geom_point() +
   scale_color_brewer(palette = "Set1") +
-  facet_wrap(~ type + Features) +
+  facet_wrap(~ type) +
+  scale_y_log10() +
+  ylab("Time per sample (sec)") +
+  xlab("Cells per sample") +
   theme_classic()
 
 ggsave("complexity.pdf")
